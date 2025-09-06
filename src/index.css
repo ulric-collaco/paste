@@ -98,25 +98,20 @@
 .prose {
   @apply max-w-none text-gray-800 dark:text-gray-200;
   line-height: 1.7;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
 }
-
-.prose h1 {
-  @apply text-2xl font-bold text-gray-900 dark:text-gray-100 mt-8 mb-4 border-b border-gray-200 dark:border-gray-700 pb-2;
++
++.prose h1 {
+  @apply text-2xl font-bold text-gray-900 dark:text-gray-100 mt-4 mb-4 border-b border-gray-200 dark:border-gray-700 pb-2;
+  /* Reduce large top margin so headings don't visually escape the paste container */
 }
-
-.prose h2 {
++
++.prose h2 {
   @apply text-xl font-semibold text-gray-900 dark:text-gray-100 mt-6 mb-3;
 }
-
-.prose h3 {
-  @apply text-lg font-medium text-gray-900 dark:text-gray-100 mt-4 mb-2;
-}
-
-.prose p {
-  @apply mb-4 leading-relaxed;
-}
-
-.prose code {
++
++.prose code {
   @apply bg-gray-100 dark:bg-gray-800 text-pink-600 dark:text-pink-400 px-1.5 py-0.5 rounded text-sm font-mono;
 }
 

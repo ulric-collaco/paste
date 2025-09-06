@@ -3,6 +3,50 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
 import { db, utils } from '../lib/supabase';
 import { Edit, Save, X, AlertCircle } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw'; // only if you need raw HTML (unsafe for untrusted input)
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { tomorrow } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { useCallback } from 'react';
+
+// Custom renderer for fenced code blocks to add a copy button
+const CodeBlock = ({ node, inline, className, children, ...props }) => {
+    const code = String(children).replace(/\n$/, '');
+    const match = /language-(\w+)/.exec(className || '');
+    const language = match ? match[1] : '';
+
+    const handleCopy = useCallback(async () => {
+        try {
+            await navigator.clipboard.writeText(code);
+        } catch (err) {
+            // Fallback: select and copy
+            const textarea = document.createElement('textarea');
+            textarea.value = code;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+        }
+    }, [code]);
+
+    return !inline ? (
+        <div className="relative my-4">
+            <div className="absolute right-2 top-2">
+                <button onClick={handleCopy} className="text-xs bg-gray-700 text-white px-2 py-1 rounded hover:bg-gray-600">
+                    Copy
+                </button>
+            </div>
+            <SyntaxHighlighter language={language} style={tomorrow} PreTag="div" {...props}>
+                {code}
+            </SyntaxHighlighter>
+        </div>
+    ) : (
+        <code className={className} {...props}>
+            {children}
+        </code>
+    );
+};
 
 const Paste = () => {
     const [content, setContent] = useState('');
@@ -113,10 +157,8 @@ const Paste = () => {
             setContent(savedEntry.content);
             setEditDate(new Date(savedEntry.updated_at || savedEntry.created_at));
             
-            if (mode === 'passcode') {
-                setIsEditing(false);
-            }
-            // For guests, we stay in editing mode.
+            
+            setIsEditing(false);
 
         } catch (err) {
             setError('Failed to save paste.');
@@ -150,6 +192,8 @@ const Paste = () => {
         );
     }
 
+    const markdown = content || '';
+
     return (
         <div className="bg-gray-800 min-h-screen text-gray-300 font-sans flex justify-center py-10 px-4 sm:px-6 lg:px-8">
             <div className="max-w-5xl w-full space-y-6">
@@ -178,11 +222,17 @@ const Paste = () => {
                             placeholder="Start typing your paste here..."
                         />
                     ) : (
-                        <pre className="p-6 overflow-x-auto min-h-96">
-                            <code className="font-mono text-sm text-gray-100 whitespace-pre-wrap">
-                                {content || "Your paste is empty. Click 'Edit' to start."}
-                            </code>
-                        </pre>
+                        <div className="prose dark:prose-invert p-6 overflow-x-auto min-h-96">
+                            <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                rehypePlugins={[rehypeRaw]} // remove if you don't need raw HTML
+                                components={{
+                                    code: CodeBlock,
+                                }}
+                            >
+                                {markdown}
+                            </ReactMarkdown>
+                        </div>
                     )}
                 </div>
 
