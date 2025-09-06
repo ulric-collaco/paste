@@ -1,4 +1,4 @@
-# 📝 Rentry Clone
+# 📝 Pastry
 
 This project is **inspired by rentry**, a simple and elegant pastebin service. It provides a clean interface for creating and sharing text pastes anonymously, with support for both **permanent (passcode-protected)** and **shared guest pastes**. Built with React and Supabase, it offers a modern, responsive experience for quick text sharing. 🚀
 
