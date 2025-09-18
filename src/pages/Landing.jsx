@@ -17,7 +17,8 @@ const Landing = () => {
     if (passcodeInput.trim()) {
       const isValid = setPasscodeMode(passcodeInput.trim())
       if (isValid) {
-        navigate('/paste')
+        // After successful passcode entry, navigate to admin route
+        navigate('/admin')
       } else {
         setPasscodeError('Invalid passcode. Please try again.')
         setPasscodeInput('')

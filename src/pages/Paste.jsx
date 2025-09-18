@@ -66,12 +66,25 @@ const Paste = ({ mode }) => {
             setIsLoading(true);
             try {
                 if (mode === 'admin') {
-                    // Only allow access if passcode is set
-                    if (!passcode) {
-                        navigate('/');
-                        return;
+                    // Only allow access to /admin when a passcode cookie/context is present.
+                    const getCookie = (name) => {
+                        if (typeof document === 'undefined') return null
+                        return document.cookie.split('; ').reduce((r, v) => {
+                            const parts = v.split('=')
+                            return parts[0] === name ? decodeURIComponent(parts[1]) : r
+                        }, null)
                     }
-                    const entry = await db.getEntryByPasscode(passcode);
+
+                    const cookiePass = getCookie('passcode')
+                    if (!passcode && !cookiePass) {
+                        // No passcode in context or cookie — block direct access
+                        navigate('/')
+                        return
+                    }
+
+                    const effectivePass = passcode || cookiePass
+                    // use effectivePass for admin entry lookups
+                    const entry = await db.getEntryByPasscode(effectivePass)
                     if (entry) {
                         setContent(entry.content || '');
                         setEditedContent(entry.content || '');
