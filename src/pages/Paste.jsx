@@ -48,30 +48,29 @@ const CodeBlock = ({ node, inline, className, children, ...props }) => {
     );
 };
 
-const Paste = () => {
+
+const Paste = ({ mode }) => {
     const [content, setContent] = useState('');
     const [isEditing, setIsEditing] = useState(false);
     const [editedContent, setEditedContent] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
-    
     const [pubDate, setPubDate] = useState(null);
     const [editDate, setEditDate] = useState(null);
     const [slug, setSlug] = useState(null);
-
-    const { mode, passcode, resetMode } = useApp();
+    const { passcode, resetMode } = useApp();
     const navigate = useNavigate();
 
     useEffect(() => {
-        if (!mode) {
-            navigate('/');
-            return;
-        }
-
         const loadPaste = async () => {
             setIsLoading(true);
             try {
-                if (mode === 'passcode') {
+                if (mode === 'admin') {
+                    // Only allow access if passcode is set
+                    if (!passcode) {
+                        navigate('/');
+                        return;
+                    }
                     const entry = await db.getEntryByPasscode(passcode);
                     if (entry) {
                         setContent(entry.content || '');
@@ -79,16 +78,14 @@ const Paste = () => {
                         setPubDate(new Date(entry.created_at));
                         setEditDate(new Date(entry.updated_at || entry.created_at));
                         setSlug(entry.slug);
-                        // Increment views
                         await db.incrementViews(entry.slug);
                     } else {
-                        // First time for admin, start with empty content
                         setContent('');
                         setEditedContent('');
                         setPubDate(new Date());
                         setEditDate(new Date());
                     }
-                } else { // Guest mode
+                } else { // guest mode
                     const guestSlug = 'guest-paste';
                     try {
                         const entry = await db.getEntry(guestSlug);
@@ -98,9 +95,8 @@ const Paste = () => {
                             setPubDate(new Date(entry.created_at));
                             setEditDate(new Date(entry.updated_at || entry.created_at));
                             setSlug(guestSlug);
-                            setIsEditing(false); // Content exists, start in view mode.
+                            setIsEditing(false);
                         } else {
-                            // No content, start in edit mode.
                             setContent('');
                             setEditedContent('');
                             setPubDate(new Date());
@@ -109,7 +105,6 @@ const Paste = () => {
                             setIsEditing(true);
                         }
                     } catch (err) {
-                        // Error fetching, start fresh in edit mode.
                         setContent('');
                         setEditedContent('');
                         setPubDate(new Date());
@@ -126,7 +121,6 @@ const Paste = () => {
                 setIsLoading(false);
             }
         };
-
         loadPaste();
     }, [mode, passcode, navigate]);
 
@@ -199,10 +193,10 @@ const Paste = () => {
             <div className="max-w-5xl w-full space-y-6">
                 <div className="text-center">
                     <h1 className="text-4xl font-extrabold text-white tracking-tight">
-                        {mode === 'passcode' ? 'Admin Paste' : 'Shared Guest Paste'}
+                        {mode === 'admin' ? 'Admin Paste' : 'Shared Guest Paste'}
                     </h1>
                     <p className="mt-4 text-lg text-blue-400">
-                        {mode === 'passcode' ? 'Your permanent, editable paste.' : 'This is a shared paste that anyone can edit.'}
+                        {mode === 'admin' ? 'Your permanent, editable paste.' : 'This is a shared paste that anyone can edit.'}
                     </p>
                 </div>
 
@@ -225,7 +219,7 @@ const Paste = () => {
                         <div className="prose dark:prose-invert p-6 overflow-x-auto min-h-96">
                             <ReactMarkdown
                                 remarkPlugins={[remarkGfm]}
-                                rehypePlugins={[rehypeRaw]} // remove if you don't need raw HTML
+                                rehypePlugins={[rehypeRaw]}
                                 components={{
                                     code: CodeBlock,
                                 }}
@@ -250,14 +244,12 @@ const Paste = () => {
                                 </button>
                             </>
                         ) : (
-                            (mode === 'passcode' || mode === 'guest') && (
-                                <button onClick={handleEdit} className="flex items-center px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600 transition-colors">
-                                    <Edit size={16} className="mr-2" />
-                                    Edit
-                                </button>
-                            )
+                            <button onClick={handleEdit} className="flex items-center px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600 transition-colors">
+                                <Edit size={16} className="mr-2" />
+                                Edit
+                            </button>
                         )}
-                         <button onClick={() => { resetMode(); navigate('/'); }} className="flex items-center px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600 transition-colors">
+                        <button onClick={() => { resetMode(); navigate('/'); }} className="flex items-center px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600 transition-colors">
                             Back to Home
                         </button>
                     </div>

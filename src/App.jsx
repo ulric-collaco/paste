@@ -15,7 +15,8 @@ function App() {
           <div className="min-h-screen bg-gray-50 dark:bg-dark-900">
             <Routes>
               <Route path="/" element={<Landing />} />
-              <Route path="/paste" element={<Paste />} />
+              <Route path="/paste" element={<Paste mode="guest" />} />
+              <Route path="/admin" element={<Paste mode="admin" />} />
               <Route path="/v/:slug" element={<StaticPaste />} />
             </Routes>
           </div>
