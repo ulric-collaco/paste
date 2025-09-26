@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
 import { db, utils } from '../lib/supabase';
-import { Edit, Save, X, AlertCircle } from 'lucide-react';
+import { Edit, Save, X, AlertCircle, Files } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw'; // only if you need raw HTML (unsafe for untrusted input)
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { tomorrow } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useCallback } from 'react';
+import FileManager from '../components/FileManager';
 
 // Custom renderer for fenced code blocks to add a copy button
 const CodeBlock = ({ node, inline, className, children, ...props }) => {
@@ -58,7 +59,10 @@ const Paste = ({ mode }) => {
     const [pubDate, setPubDate] = useState(null);
     const [editDate, setEditDate] = useState(null);
     const [slug, setSlug] = useState(null);
-    const { passcode, resetMode } = useApp();
+    const [isFileManagerOpen, setIsFileManagerOpen] = useState(false);
+    const [entryFiles, setEntryFiles] = useState([]);
+    const [currentEntryId, setCurrentEntryId] = useState(null);
+    const { passcode, resetMode, getCookie } = useApp();
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -67,14 +71,6 @@ const Paste = ({ mode }) => {
             try {
                 if (mode === 'admin') {
                     // Only allow access to /admin when a passcode cookie/context is present.
-                    const getCookie = (name) => {
-                        if (typeof document === 'undefined') return null
-                        return document.cookie.split('; ').reduce((r, v) => {
-                            const parts = v.split('=')
-                            return parts[0] === name ? decodeURIComponent(parts[1]) : r
-                        }, null)
-                    }
-
                     const cookiePass = getCookie('passcode')
                     if (!passcode && !cookiePass) {
                         // No passcode in context or cookie — block direct access
@@ -91,12 +87,16 @@ const Paste = ({ mode }) => {
                         setPubDate(new Date(entry.created_at));
                         setEditDate(new Date(entry.updated_at || entry.created_at));
                         setSlug(entry.slug);
+                        setCurrentEntryId(entry.id);
+                        setEntryFiles(entry.files || []);
                         await db.incrementViews(entry.slug);
                     } else {
                         setContent('');
                         setEditedContent('');
                         setPubDate(new Date());
                         setEditDate(new Date());
+                        setCurrentEntryId(null);
+                        setEntryFiles([]);
                     }
                 } else { // guest mode
                     const guestSlug = 'guest-paste';
@@ -108,6 +108,8 @@ const Paste = ({ mode }) => {
                             setPubDate(new Date(entry.created_at));
                             setEditDate(new Date(entry.updated_at || entry.created_at));
                             setSlug(guestSlug);
+                            setCurrentEntryId(entry.id);
+                            setEntryFiles(entry.files || []);
                             setIsEditing(false);
                         } else {
                             setContent('');
@@ -115,6 +117,8 @@ const Paste = ({ mode }) => {
                             setPubDate(new Date());
                             setEditDate(new Date());
                             setSlug(guestSlug);
+                            setCurrentEntryId(null);
+                            setEntryFiles([]);
                             setIsEditing(true);
                         }
                     } catch (err) {
@@ -123,6 +127,8 @@ const Paste = ({ mode }) => {
                         setPubDate(new Date());
                         setEditDate(new Date());
                         setSlug(guestSlug);
+                        setCurrentEntryId(null);
+                        setEntryFiles([]);
                         setIsEditing(true);
                         console.log("Could not find guest-paste, starting fresh.");
                     }
@@ -159,11 +165,14 @@ const Paste = ({ mode }) => {
                 is_guest: mode === 'guest',
             };
 
-            const savedEntry = await db.createOrUpdateEntry(entryData, passcode);
+            const cookiePass = getCookie('passcode');
+            const effectivePass = passcode || cookiePass;
+            const savedEntry = await db.createOrUpdateEntry(entryData, effectivePass);
             
             setContent(savedEntry.content);
             setEditDate(new Date(savedEntry.updated_at || savedEntry.created_at));
-            
+            setCurrentEntryId(savedEntry.id);
+            setSlug(savedEntry.slug || currentSlug);
             
             setIsEditing(false);
 
@@ -189,6 +198,11 @@ const Paste = ({ mode }) => {
             minute: '2-digit',
             hour12: false 
         }) + ' UTC';
+    };
+
+    const isUserAuthenticated = () => {
+        const cookiePass = getCookie('passcode')
+        return !!(passcode || cookiePass)
     };
 
     if (isLoading) {
@@ -271,6 +285,31 @@ const Paste = ({ mode }) => {
                         <span>Last Edit: {formatDate(editDate)}</span>
                     </div>
                 </div>
+
+                {/* Floating File Manager Button - Only show when authenticated */}
+                {isUserAuthenticated() && (
+                    <button
+                        onClick={() => currentEntryId && setIsFileManagerOpen(true)}
+                        disabled={!currentEntryId}
+                        className={`fixed bottom-6 right-6 p-4 rounded-full shadow-lg transition-all duration-200 z-40 ${
+                            currentEntryId 
+                                ? 'bg-blue-600 hover:bg-blue-700 text-white hover:scale-105 cursor-pointer'
+                                : 'bg-gray-600 text-gray-400 cursor-not-allowed opacity-75'
+                        }`}
+                        title={currentEntryId ? "File Manager" : "Save your paste first to enable file management"}
+                    >
+                        <Files size={24} />
+                    </button>
+                )}
+
+                {/* FileManager Modal */}
+                <FileManager
+                    isOpen={isFileManagerOpen}
+                    onClose={() => setIsFileManagerOpen(false)}
+                    entryId={currentEntryId}
+                    files={entryFiles}
+                    onFilesChange={setEntryFiles}
+                />
             </div>
         </div>
     );

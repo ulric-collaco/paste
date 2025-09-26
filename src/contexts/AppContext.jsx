@@ -85,7 +85,8 @@ export const AppProvider = ({ children }) => {
       setPasscodeMode,
       setGuestMode,
       resetMode,
-      validatePasscode
+      validatePasscode,
+      getCookie
     }}>
       {children}
     </AppContext.Provider>
