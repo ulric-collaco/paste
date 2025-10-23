@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
-import { db, utils } from '../lib/supabase';
+import { db, utils } from '../lib/neon';
 import { Edit, Save, X, AlertCircle, Files } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import rehypeRaw from 'rehype-raw'; // only if you need raw HTML (unsafe for untrusted input)
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { tomorrow } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useCallback } from 'react';
@@ -207,7 +206,7 @@ const Paste = ({ mode }) => {
 
     if (isLoading) {
         return (
-            <div className="bg-gray-800 min-h-screen flex items-center justify-center text-white">
+            <div className="bg-black min-h-screen flex items-center justify-center text-gray-300">
                 Loading your paste...
             </div>
         );
@@ -216,14 +215,14 @@ const Paste = ({ mode }) => {
     const markdown = content || '';
 
     return (
-        <div className="bg-gray-800 min-h-screen text-gray-300 font-sans flex justify-center py-10 px-4 sm:px-6 lg:px-8">
+        <div className="bg-black min-h-screen text-gray-300 font-sans flex justify-center py-10 px-4 sm:px-6 lg:px-8">
             <div className="max-w-5xl w-full space-y-6">
                 <div className="text-center">
-                    <h1 className="text-4xl font-extrabold text-white tracking-tight">
-                        {mode === 'admin' ? 'Admin Paste' : 'Shared Guest Paste'}
+                    <h1 className="heading-xl">
+                        {mode === 'admin' ? 'Admin Paste' : 'Guest Paste'}
                     </h1>
-                    <p className="mt-4 text-lg text-blue-400">
-                        {mode === 'admin' ? 'Your permanent, editable paste.' : 'This is a shared paste that anyone can edit.'}
+                    <p className="mt-2 muted">
+                        {mode === 'admin' ? 'Your permanent, editable paste.' : 'A shared paste anyone can edit.'}
                     </p>
                 </div>
 
@@ -234,19 +233,18 @@ const Paste = ({ mode }) => {
                     </div>
                 )}
 
-                <div className="bg-gray-900 shadow-lg rounded-lg overflow-hidden">
+                <div className="surface overflow-hidden">
                     {isEditing ? (
                         <textarea
                             value={editedContent}
                             onChange={(e) => setEditedContent(e.target.value)}
-                            className="w-full h-96 bg-gray-900 text-gray-100 p-6 resize-y border-none outline-none font-mono text-sm leading-relaxed"
-                            placeholder="Start typing your paste here..."
+                            className="textarea font-mono text-sm leading-relaxed min-h-96"
+                            placeholder="Start typing your paste..."
                         />
                     ) : (
-                        <div className="prose dark:prose-invert p-6 overflow-x-auto min-h-96">
+                        <div className="prose p-6 overflow-x-auto min-h-96">
                             <ReactMarkdown
                                 remarkPlugins={[remarkGfm]}
-                                rehypePlugins={[rehypeRaw]}
                                 components={{
                                     code: CodeBlock,
                                 }}
@@ -261,28 +259,28 @@ const Paste = ({ mode }) => {
                     <div className="flex items-center space-x-4">
                         {isEditing ? (
                             <>
-                                <button onClick={handleSave} disabled={isLoading} className="flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50">
+                                <button onClick={handleSave} disabled={isLoading} className="btn btn-primary disabled:opacity-50">
                                     <Save size={16} className="mr-2" />
                                     {isLoading ? 'Saving...' : 'Save'}
                                 </button>
-                                <button onClick={handleCancel} className="flex items-center px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors">
+                                <button onClick={handleCancel} className="btn">
                                     <X size={16} className="mr-2" />
                                     Cancel
                                 </button>
                             </>
                         ) : (
-                            <button onClick={handleEdit} className="flex items-center px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600 transition-colors">
+                            <button onClick={handleEdit} className="btn">
                                 <Edit size={16} className="mr-2" />
                                 Edit
                             </button>
                         )}
-                        <button onClick={() => { resetMode(); navigate('/'); }} className="flex items-center px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600 transition-colors">
+                        <button onClick={() => { resetMode(); navigate('/'); }} className="btn">
                             Back to Home
                         </button>
                     </div>
-                    <div className="text-xs text-gray-500 flex flex-wrap justify-center sm:justify-end gap-x-4 gap-y-1">
-                        <span>Pub: {formatDate(pubDate)}</span>
-                        <span>Last Edit: {formatDate(editDate)}</span>
+                    <div className="text-xs text-neutral-500 flex flex-wrap justify-center sm:justify-end gap-x-4 gap-y-1">
+                        <span>Pub: {utils.formatDate(pubDate)}</span>
+                        <span>Last Edit: {utils.formatDate(editDate)}</span>
                     </div>
                 </div>
 
@@ -291,10 +289,10 @@ const Paste = ({ mode }) => {
                     <button
                         onClick={() => currentEntryId && setIsFileManagerOpen(true)}
                         disabled={!currentEntryId}
-                        className={`fixed bottom-6 right-6 p-4 rounded-full shadow-lg transition-all duration-200 z-40 ${
+                        className={`fixed bottom-6 right-6 p-4 rounded-full border z-40 transition-all duration-150 ${
                             currentEntryId 
-                                ? 'bg-blue-600 hover:bg-blue-700 text-white hover:scale-105 cursor-pointer'
-                                : 'bg-gray-600 text-gray-400 cursor-not-allowed opacity-75'
+                                ? 'bg-neutral-950 border-neutral-800 text-gray-200 hover:bg-neutral-900 hover:border-neutral-700'
+                                : 'bg-neutral-900 border-neutral-900 text-neutral-600 cursor-not-allowed opacity-75'
                         }`}
                         title={currentEntryId ? "File Manager" : "Save your paste first to enable file management"}
                     >

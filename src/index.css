@@ -2,174 +2,51 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Base: black-only theme */
 @layer base {
-  html {
-    scroll-behavior: smooth;
-  }
-  
+  html { scroll-behavior: smooth; }
   body {
-    @apply bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-200;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    @apply bg-black text-gray-200 antialiased selection:bg-gray-800 selection:text-gray-100;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', Arial, sans-serif;
   }
-  
-  /* Add custom gray-750 color */
-  .bg-gray-750 {
-    background-color: rgb(55, 65, 81);
-  }
-  .text-gray-750 {
-    color: rgb(55, 65, 81);
-  }
-  .border-gray-750 {
-    border-color: rgb(55, 65, 81);
+  code, pre, .font-mono {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
   }
 }
 
+/* Components */
 @layer components {
-  .btn-primary {
-    @apply bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-md transition-all duration-200 shadow-sm hover:shadow;
-  }
-  
-  .btn-secondary {
-    @apply bg-white hover:bg-gray-50 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 font-medium py-2 px-6 rounded-md transition-all duration-200 border border-gray-300 dark:border-gray-600 shadow-sm hover:shadow;
-  }
-  
-  .input-field {
-    @apply w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 transition-colors duration-200 text-sm;
-  }
-  
-  .textarea-field {
-    @apply w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 transition-colors duration-200 text-sm resize-none;
-    font-family: 'SF Mono', Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
-    line-height: 1.5;
-  }
-  
-  .card {
-    @apply bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm;
-  }
+  .container-page { @apply max-w-5xl mx-auto px-6 py-10; }
 
-  .rentry-container {
-    @apply max-w-4xl mx-auto px-6 py-8;
-  }
+  .surface { @apply bg-neutral-950 border border-neutral-900 rounded-xl; }
 
-  .rentry-header {
-    @apply text-center mb-12;
-  }
+  .btn { @apply inline-flex items-center justify-center h-10 px-4 rounded-lg border border-neutral-800 bg-neutral-950 text-gray-200 transition-all duration-150 ease-out hover:bg-neutral-900 hover:border-neutral-700 active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-700/60; }
+  .btn-primary { @apply bg-neutral-900 border-neutral-800 hover:border-neutral-700 hover:bg-neutral-800; }
+  .btn-ghost { @apply bg-transparent border-neutral-800 hover:border-neutral-700; }
+  .btn-danger { @apply border-red-900 text-red-300 hover:bg-red-950/50 hover:border-red-800; }
 
-  .rentry-title {
-    @apply text-5xl font-light text-gray-900 dark:text-gray-100 mb-4 tracking-tight;
-  }
+  .input { @apply w-full h-10 px-3 rounded-lg bg-neutral-950 border border-neutral-800 text-gray-200 placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-700/60; }
+  .textarea { @apply w-full min-h-64 p-4 rounded-lg bg-neutral-950 border border-neutral-900 text-gray-200 placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-700/60 resize-y; }
 
-  .rentry-subtitle {
-    @apply text-lg text-gray-600 dark:text-gray-400 font-light;
-  }
-
-  .rentry-button {
-    @apply bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-8 rounded-md transition-all duration-200 text-base shadow-sm hover:shadow-md;
-  }
-
-  .rentry-button-secondary {
-    @apply bg-white hover:bg-gray-50 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 font-medium py-3 px-8 rounded-md transition-all duration-200 border border-gray-300 dark:border-gray-600 text-base shadow-sm hover:shadow-md;
-  }
-
-  .rentry-nav {
-    @apply border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900;
-  }
-
-  .rentry-editor {
-    @apply min-h-96 font-mono text-sm leading-relaxed;
-  }
-
-  /* Editable Text Zone styles */
-  .editable-text-zone {
-    @apply w-full;
-  }
-
-  .editable-text-zone .hover-zone:hover {
-    @apply bg-gray-50 dark:bg-gray-700;
-  }
-
-  /* Keyboard shortcut styling */
-  .editable-text-zone kbd {
-    @apply inline-block px-2 py-1 text-xs font-semibold text-gray-800 dark:text-gray-200 bg-gray-200 dark:bg-gray-600 rounded shadow-sm;
-  }
+  .heading-xl { @apply text-5xl font-light tracking-tight text-white; }
+  .muted { @apply text-sm text-neutral-400; }
 }
 
-/* Markdown content styling - rentry.co style */
-.prose {
-  @apply max-w-none text-gray-800 dark:text-gray-200;
-  line-height: 1.7;
-  box-sizing: border-box;
-  overflow-wrap: anywhere;
-}
+/* Prose (markdown) */
+.prose { @apply max-w-none text-neutral-200 leading-8; }
+.prose h1 { @apply text-3xl font-semibold text-white mt-4 mb-4 border-b border-neutral-900 pb-2; }
+.prose h2 { @apply text-2xl font-semibold text-white mt-6 mb-3; }
+.prose h3 { @apply text-xl font-medium text-white mt-5 mb-2; }
+.prose p { @apply text-neutral-300; }
+.prose a { @apply text-neutral-200 underline decoration-neutral-700 hover:decoration-neutral-500; }
+.prose code { @apply bg-neutral-900 text-neutral-200 px-1.5 py-0.5 rounded text-sm font-mono; }
+.prose pre { @apply bg-neutral-950 text-neutral-200 p-4 rounded-lg overflow-x-auto my-4 border border-neutral-900; }
+.prose blockquote { @apply border-l-4 border-neutral-800 pl-4 italic text-neutral-400 my-4; }
+.prose ul { @apply list-disc list-inside mb-4 space-y-1; }
+.prose ol { @apply list-decimal list-inside mb-4 space-y-1; }
+.prose table { @apply w-full border-collapse border border-neutral-800 my-4; }
+.prose th, .prose td { @apply border border-neutral-800 px-3 py-2 text-left; }
 
-.prose h1 {
-  @apply text-2xl font-bold text-gray-900 dark:text-gray-100 mt-4 mb-4 border-b border-gray-200 dark:border-gray-700 pb-2;
-  /* Reduce large top margin so headings don't visually escape the paste container */
-}
-
-.prose h2 {
-  @apply text-xl font-semibold text-gray-900 dark:text-gray-100 mt-6 mb-3;
-}
-
-.prose code {
-  @apply bg-gray-100 dark:bg-gray-800 text-pink-600 dark:text-pink-400 px-1.5 py-0.5 rounded text-sm font-mono;
-}
-
-.prose pre {
-  @apply bg-gray-900 dark:bg-gray-800 text-gray-100 p-4 rounded-lg overflow-x-auto my-4 border border-gray-200 dark:border-gray-700;
-}
-
-.prose pre code {
-  @apply bg-transparent text-gray-100 p-0 text-sm;
-}
-
-.prose blockquote {
-  @apply border-l-4 border-gray-300 dark:border-gray-600 pl-4 italic text-gray-600 dark:text-gray-400 my-4;
-}
-
-.prose ul {
-  @apply list-disc list-inside mb-4 space-y-1;
-}
-
-.prose ol {
-  @apply list-decimal list-inside mb-4 space-y-1;
-}
-
-.prose a {
-  @apply text-blue-600 dark:text-blue-400 hover:underline;
-}
-
-.prose table {
-  @apply w-full border-collapse border border-gray-300 dark:border-gray-600 my-4;
-}
-
-.prose th, .prose td {
-  @apply border border-gray-300 dark:border-gray-600 px-3 py-2 text-left;
-}
-
-.prose th {
-  @apply bg-gray-50 dark:bg-gray-800 font-medium;
-}
-
-/* Syntax highlighting adjustments */
-.hljs {
-  @apply bg-gray-900 dark:bg-gray-800 !important;
-}
-
-/* File preview styles */
-.file-preview {
-  @apply border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden bg-white dark:bg-gray-800;
-}
-
-.file-preview img {
-  @apply max-w-full h-auto;
-}
-
-/* Loading spinner */
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.animate-spin {
-  animation: spin 1s linear infinite;
-}
+/* Spinner */
+@keyframes spin { to { transform: rotate(360deg); } }
+.animate-spin { animation: spin 1s linear infinite; }
