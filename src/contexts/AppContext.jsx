@@ -35,14 +35,19 @@ export const AppProvider = ({ children }) => {
   const [mode, setMode] = useState(() => getCookie('mode') || null) // 'passcode' or 'guest'
   const [passcode, setPasscode] = useState(() => getCookie('passcode') || '')
 
-  // Validate passcode against environment variable
+  // Validate passcode against environment variables and return user identifier
   const validatePasscode = (inputPasscode) => {
-    const validPasscode = import.meta.env.VITE_DEV_PASSCODE
-    return inputPasscode === validPasscode
+    const passcode1 = import.meta.env.VITE_DEV_PASSCODE
+    const passcode2 = import.meta.env.VITE_DEV_PASSCODE_2
+    
+    if (inputPasscode === passcode1) return 'user_1'
+    if (inputPasscode === passcode2) return 'user_2'
+    return null
   }
 
   const setPasscodeMode = (code) => {
-    if (validatePasscode(code)) {
+    const userId = validatePasscode(code)
+    if (userId) {
       setMode('passcode')
       setPasscode(code)
       try {
