@@ -21,6 +21,9 @@ CREATE TABLE IF NOT EXISTS files (
     file_url TEXT NOT NULL,
     file_name VARCHAR(255) NOT NULL,
     file_size BIGINT NOT NULL,
+    key TEXT UNIQUE,
+    owner VARCHAR(255),
+    is_guest BOOLEAN DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
