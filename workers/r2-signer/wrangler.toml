@@ -1,0 +1,10 @@
+name = "r2-signer"
+main = "src/worker.js"
+compatibility_date = "2024-10-01"
+
+# Configure env vars as secrets via `wrangler secret put`
+# R2_ACCOUNT_ID
+# R2_BUCKET_NAME
+# R2_ACCESS_KEY_ID
+# R2_SECRET_ACCESS_KEY
+# R2_REGION = "auto"

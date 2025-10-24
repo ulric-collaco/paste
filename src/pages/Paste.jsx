@@ -217,6 +217,13 @@ const Paste = ({ mode }) => {
     return (
         <div className="bg-black min-h-screen text-gray-300 font-sans flex justify-center py-10 px-4 sm:px-6 lg:px-8">
             <div className="max-w-5xl w-full space-y-6">
+                {/* Top utility bar for quick actions (guest gets a Copy Link button) */}
+                {mode !== 'admin' && (
+                  <div className="flex items-center justify-end">
+                    <CopyShareLinkButton slug={slug || 'guest-paste'} />
+                  </div>
+                )}
+
                 <div className="text-center">
                     <h1 className="heading-xl">
                         {mode === 'admin' ? 'Admin Paste' : 'Guest Paste'}
@@ -314,3 +321,43 @@ const Paste = ({ mode }) => {
 };
 
 export default Paste;
+
+// Small action button to copy a public, read-only link for sharing
+const CopyShareLinkButton = ({ slug }) => {
+    const [copied, setCopied] = React.useState(false)
+    const shareUrl = React.useMemo(() => {
+        try {
+            const origin = window.location.origin
+            const cleanSlug = slug || 'guest-paste'
+            return `${origin}/v/${cleanSlug}`
+        } catch {
+            return `/v/${slug || 'guest-paste'}`
+        }
+    }, [slug])
+
+    const handleCopy = async () => {
+        try {
+            await navigator.clipboard.writeText(shareUrl)
+            setCopied(true)
+            setTimeout(() => setCopied(false), 1500)
+        } catch (err) {
+            // Fallback copy
+            const ta = document.createElement('textarea')
+            ta.value = shareUrl
+            document.body.appendChild(ta)
+            ta.select()
+            document.execCommand('copy')
+            document.body.removeChild(ta)
+            setCopied(true)
+            setTimeout(() => setCopied(false), 1500)
+        }
+    }
+
+    return (
+        <div className="flex items-center gap-2">
+            <button onClick={handleCopy} className="btn btn-primary">
+                {copied ? 'Copied!' : 'Copy this link'}
+            </button>
+        </div>
+    )
+}

@@ -1,8 +1,12 @@
 import React, { useState, useCallback } from 'react';
 import { X, Upload, Download, Trash2, AlertCircle } from 'lucide-react';
 import { db, utils } from '../lib/neon';
+import { useApp } from '../contexts/AppContext';
+import R2UploadPanel from './R2UploadPanel';
+import { getSignedUrl, explainDownloadFailure } from '../lib/r2';
 
 const FileManager = ({ isOpen, onClose, entryId, files, onFilesChange }) => {
+  const { mode } = useApp();
   const [isDragOver, setIsDragOver] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -112,9 +116,31 @@ const FileManager = ({ isOpen, onClose, entryId, files, onFilesChange }) => {
     e.target.value = '';
   }, [handleFileUpload, isUploading]);
 
-  const handleDownload = useCallback((file) => {
-    // Open file URL in new tab for download
-    window.open(file.file_url, '_blank');
+  // No-op here; we use shared helper from lib/r2
+
+  const handleDownload = useCallback(async (file) => {
+    try {
+      if (!file.key) {
+        // Fallback: try opening stored URL, but likely private and will fail
+        window.open(file.file_url, '_blank');
+        return;
+      }
+  const url = await getSignedUrl(file.key, 'GET');
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(explainDownloadFailure(resp.status));
+      const blob = await resp.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = file.file_name || file.key;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error('Download error:', err);
+      setError(err.message || 'Failed to download file');
+    }
   }, []);
 
   const handleDelete = useCallback(async (file) => {
@@ -126,7 +152,26 @@ const FileManager = ({ isOpen, onClose, entryId, files, onFilesChange }) => {
     setError(null);
 
     try {
-      await db.deleteFile(file.id);
+      // Delete object from R2 if key exists
+      if (file.key) {
+        try {
+          const url = await getSignedUrl(file.key, 'DELETE');
+          const resp = await fetch(url, { method: 'DELETE' });
+          if (!resp.ok) console.warn('R2 delete failed with status', resp.status);
+        } catch (e) {
+          console.warn('Failed to delete from R2:', e);
+        }
+        // Remove metadata by key
+        try {
+          await db.deleteFileMetadata(file.key);
+        } catch (e) {
+          // fallback to id-based delete
+          await db.deleteFile(file.id);
+        }
+      } else {
+        // No key in record, remove by id only
+        await db.deleteFile(file.id);
+      }
       
       // Update parent component by removing deleted file
       onFilesChange(files.filter(f => f.id !== file.id));
@@ -141,7 +186,7 @@ const FileManager = ({ isOpen, onClose, entryId, files, onFilesChange }) => {
         return newSet;
       });
     }
-  }, [files, onFilesChange]);
+  }, [files, onFilesChange, getSignedUrl]);
 
   const formatFileSize = (bytes) => {
     if (!bytes || isNaN(bytes)) return 'Unknown size';
@@ -174,67 +219,15 @@ const FileManager = ({ isOpen, onClose, entryId, files, onFilesChange }) => {
             </div>
           )}
 
-          {/* File Upload Section */}
+          {/* File Upload Section - R2 Upload Panel */}
           <div className="mb-8">
             <h3 className="text-lg font-medium text-gray-200 mb-4">Upload Files</h3>
-            
-            <div
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              className={`border border-dashed rounded-lg p-8 text-center transition-colors ${
-                isUploading
-                  ? 'pointer-events-none opacity-75'
-                  : isDragOver
-                  ? 'border-neutral-600 bg-neutral-900'
-                  : 'border-neutral-800 hover:border-neutral-700'
-              }`}
-            >
-              {isUploading ? (
-                <div className="space-y-4">
-                  <div className="text-neutral-300">
-                    <Upload size={48} className="mx-auto mb-2" />
-                    <p>Uploading files... {uploadProgress}%</p>
-                  </div>
-                  <div className="w-full bg-neutral-900 rounded-full h-2">
-                    <div
-                      className="bg-neutral-700 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${uploadProgress}%` }}
-                    ></div>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <Upload size={48} className="mx-auto text-neutral-400" />
-                  <div>
-                    <p className="text-neutral-300 mb-2">
-                      Drag and drop files here, or click to select
-                    </p>
-                    <p className="text-sm text-neutral-500">
-                      Supports all file types (images, documents, videos, etc.)
-                    </p>
-                  </div>
-                  <input
-                    type="file"
-                    multiple
-                    onChange={handleFileSelect}
-                    disabled={isUploading}
-                    className="hidden"
-                    id="file-upload"
-                  />
-                  <label
-                    htmlFor="file-upload"
-                    className={`inline-block font-medium py-2 px-6 rounded-md transition-all duration-150 border ${
-                      isUploading
-                        ? 'bg-neutral-900 text-neutral-500 border-neutral-900 cursor-not-allowed'
-                        : 'bg-neutral-950 text-gray-200 border-neutral-800 hover:bg-neutral-900 hover:border-neutral-700 cursor-pointer'
-                    }`}
-                  >
-                    Select Files
-                  </label>
-                </div>
-              )}
-            </div>
+            <R2UploadPanel
+              entryId={entryId}
+              isGuestMode={mode === 'guest'}
+              onFilesChange={(updatedList) => onFilesChange(updatedList)}
+              existingFiles={files}
+            />
           </div>
 
           {/* File List Section */}

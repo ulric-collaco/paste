@@ -83,6 +83,7 @@ export const db = {
             json_build_object(
               'id', f.id,
               'entry_id', f.entry_id,
+              'key', f.key,
               'file_url', f.file_url,
               'file_name', f.file_name,
               'file_size', f.file_size,
@@ -111,6 +112,7 @@ export const db = {
             json_build_object(
               'id', f.id,
               'entry_id', f.entry_id,
+              'key', f.key,
               'file_url', f.file_url,
               'file_name', f.file_name,
               'file_size', f.file_size,
@@ -150,6 +152,70 @@ export const db = {
   // Upload file - Note: Neon doesn't have built-in storage, you'll need to use a service like S3, Cloudflare R2, or Vercel Blob
   async uploadFile(file, entryId) {
     throw new Error('File upload not implemented. Please configure an external storage provider (S3, R2, Vercel Blob, etc.)')
+  },
+
+  // Return aggregated file sizes (bytes) for guests and non-guests
+  async getAllFileSizes() {
+    try {
+      // Try direct grouping by files.is_guest (if column exists)
+      const rows = await sql`
+        SELECT is_guest, COALESCE(SUM(file_size), 0) AS total_bytes
+        FROM files
+        GROUP BY is_guest
+      `
+
+      let guestBytes = 0
+      let userBytes = 0
+      for (const r of rows) {
+        if (r.is_guest) guestBytes = Number(r.total_bytes || 0)
+        else userBytes = Number(r.total_bytes || 0)
+      }
+      return { guestBytes, userBytes }
+    } catch (err) {
+      // Fallback: files table may not have is_guest column; join entries to determine guest vs user
+      const rows = await sql`
+        SELECT
+          COALESCE(SUM(CASE WHEN e.is_guest THEN f.file_size ELSE 0 END), 0) AS guest_bytes,
+          COALESCE(SUM(CASE WHEN e.is_guest THEN 0 ELSE f.file_size END), 0) AS user_bytes
+        FROM files f
+        LEFT JOIN entries e ON f.entry_id = e.id
+      `
+      const r = rows[0] || { guest_bytes: 0, user_bytes: 0 }
+      return { guestBytes: Number(r.guest_bytes || 0), userBytes: Number(r.user_bytes || 0) }
+    }
+  },
+
+  // Insert a file metadata record after successful upload
+  async insertFileMetadata({ filename, key, size, owner = null, is_guest = false, entry_id = null }) {
+    // Build a public URL based on Cloudflare R2 S3-compatible public URL format
+    const account = import.meta.env.VITE_R2_ACCOUNT_ID
+    const bucket = import.meta.env.VITE_R2_BUCKET_NAME
+    const publicUrl = account && bucket ? `https://${account}.r2.cloudflarestorage.com/${bucket}/${encodeURIComponent(key)}` : null
+
+    const result = await sql`
+      INSERT INTO files (entry_id, file_url, file_name, file_size, key, owner, is_guest, created_at)
+      VALUES (
+        ${entry_id},
+        ${publicUrl},
+        ${filename},
+        ${size},
+        ${key},
+        ${owner},
+        ${is_guest},
+        NOW()
+      )
+      RETURNING *
+    `
+    return result[0]
+  },
+
+  // Delete metadata by key (used after R2 delete)
+  async deleteFileMetadata(key) {
+    const rows = await sql`SELECT * FROM files WHERE key = ${key}`
+    if (rows.length === 0) return { success: false }
+    const file = rows[0]
+    await sql`DELETE FROM files WHERE key = ${key}`
+    return { success: true, deletedFile: file }
   },
 
   // Delete a file

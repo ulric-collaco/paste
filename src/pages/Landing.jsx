@@ -82,7 +82,7 @@ const Landing = () => {
 
             <div className="surface p-6">
               <h2 className="text-base text-white mb-2">Continue as guest</h2>
-              <p className="muted mb-5">Create a shared paste that expires after 2 hours.</p>
+              <p className="muted mb-5">Create a universally accessible paste.</p>
               <button onClick={handleGuestMode} className="btn w-full">Continue as Guest</button>
             </div>
           </div>
