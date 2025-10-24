@@ -11,45 +11,53 @@ To use it, visit the homepage and choose between:
 
 Create or edit pastes in the editor, save them, and share the generated URLs. Guests can view and edit the same shared paste collaboratively. 📤
 
-## Configuration
+## Tech Stack & Architecture
 
-Create a `.env` file in the project root (same folder as `package.json`) and set the following variables:
+This project uses a modern, serverless architecture designed for security and performance.
 
+### Core Technologies
+
+-   **Frontend**: [React](https://react.dev/) (with Vite) for a fast, responsive UI.
+-   **Styling**: [Tailwind CSS](https://tailwindcss.com/) for rapid, utility-first styling.
+-   **Database**: [Neon](https://neon.tech/) Serverless Postgres for data storage.
+-   **File Storage**: [Cloudflare R2](https://www.cloudflare.com/developer-platform/r2/) for private, S3-compatible object storage.
+-   **Deployment**: [Vercel](https://vercel.com/) for hosting the frontend and running serverless functions.
+
+### Architecture Diagram
+
+The application is designed to keep secrets and sensitive operations on the server-side, ensuring the frontend never handles API keys directly.
+
+```mermaid
+graph TD
+    subgraph "User's Browser"
+        A[React SPA]
+    end
+
+    subgraph "Vercel Platform"
+        B[Serverless Function /api/r2-sign]
+        C[Static Hosting]
+    end
+
+    subgraph "Cloud Services"
+        D[Neon DB]
+        E[Cloudflare R2 Bucket]
+    end
+
+    A -- "Fetches paste content" --> D
+    A -- "Requests presigned URL for upload/download" --> B
+    B -- "Uses R2 secrets (env vars)" --> E
+    E -- "Returns presigned URL" --> B
+    B -- "Sends presigned URL to client" --> A
+    A -- "Uploads/downloads file directly" --> E
+    C -- "Serves React SPA" --> A
 ```
-# Neon Postgres (required)
-VITE_NEON_DATABASE_URL=postgres://user:pass@host/db
 
-# Cloudflare R2 (client only needs optional external signer URL for local dev)
-# Avoid putting secrets in VITE_ variables.
-VITE_R2_SIGNER_URL= # optional, only for local dev fallback
-```
+### How It Works
 
-Notes:
-- Buckets are private by default on Cloudflare R2. Direct URLs like `https://<account>.r2.cloudflarestorage.com/<bucket>/<key>` will return XML errors (Authorization) unless they are presigned.
-- This app never exposes R2 credentials. It requests short-lived presigned URLs from the Worker in `workers/r2-signer` for uploads (PUT), downloads (GET), and deletes (DELETE).
+1.  The **React SPA** is served to the user from Vercel's static hosting.
+2.  Text content is fetched directly from the **Neon Postgres** database.
+3.  For file uploads/downloads, the client calls a **Vercel Serverless Function** (`/api/r2-sign`).
+4.  This function, which securely accesses **Cloudflare R2** credentials from Vercel's environment variables, generates a short-lived, presigned URL.
+5.  The client receives this URL and uses it to upload or download the file directly to/from the R2 bucket. This keeps the bucket private and secrets off the client.
 
-### Configure server-side signing on Vercel (recommended)
 
-1. In your Vercel Project Settings, add Environment Variables (no VITE_ prefix):
-	- `R2_ACCOUNT_ID`
-	- `R2_BUCKET_NAME`
-	- `R2_ACCESS_KEY_ID`
-	- `R2_SECRET_ACCESS_KEY`
-	- (optional) `R2_REGION` = `auto`
-2. The frontend calls the built-in API route `/api/r2-sign`, which signs URLs on the server using those secrets.
-3. For local development with `npm run dev`, you can either:
-	- Run `vercel dev` in another terminal to serve API routes locally, or
-	- Set `VITE_R2_SIGNER_URL` to a deployed signer (e.g., Cloudflare Worker) as a fallback.
-
-### Common download issue
-
-If you see an XML error like:
-
-```
-<Error>
-	<Code>InvalidArgument</Code>
-	<Message>Authorization</Message>
-</Error>
-```
-
-It means you're using a raw R2 URL without a signature. Use the app's Download button, which fetches a presigned URL from the server.
