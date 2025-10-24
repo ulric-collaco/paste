@@ -1,11 +1,10 @@
 // Shared helpers for Cloudflare R2 presigned URLs
 
-const getSignerBase = () => {
-  const base = import.meta.env.VITE_R2_SIGNER_URL
-  if (!base) {
-    throw new Error('Missing VITE_R2_SIGNER_URL in .env')
-  }
-  return base.replace(/\/$/, '')
+// Prefer the Vercel Serverless Function; fallback to an external signer URL (optional for local dev)
+const getSignerEndpoint = () => {
+  const localApi = '/api/r2-sign'
+  const external = import.meta.env.VITE_R2_SIGNER_URL || ''
+  return { localApi, external: external.replace(/\/$/, '') }
 }
 
 /**
@@ -15,13 +14,26 @@ const getSignerBase = () => {
  * expires: seconds (default 300)
  */
 export async function getSignedUrl(key, method = 'GET', expires = 300) {
-  const endpoint = `${getSignerBase()}/sign`
-  const resp = await fetch(endpoint, {
+  const { localApi, external } = getSignerEndpoint()
+
+  // Try Vercel API first (same-origin)
+  let resp = await fetch(localApi, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ key, method, expires })
   })
-  if (!resp.ok) {
+  if (!resp.ok && external) {
+    // Fallback to external signer (e.g., Cloudflare Worker) for local dev
+    try {
+      resp = await fetch(`${external}/sign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, method, expires })
+      })
+    } catch (_) {}
+  }
+
+  if (!resp || !resp.ok) {
     let detail = ''
     try {
       const j = await resp.json()
@@ -29,7 +41,7 @@ export async function getSignedUrl(key, method = 'GET', expires = 300) {
     } catch {
       // ignore
     }
-    throw new Error(`Failed to get signed URL (status ${resp.status})${detail}`)
+    throw new Error(`Failed to get signed URL${resp ? ` (status ${resp.status})` : ''}${detail}`)
   }
   const data = await resp.json()
   if (!data.url) throw new Error('Signer did not return a URL')
