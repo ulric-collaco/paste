@@ -211,6 +211,15 @@ const FileManager = ({ isOpen, onClose, entryId, files, onFilesChange }) => {
 
         {/* Modal Body */}
         <div className="p-6 overflow-y-auto max-h-[70vh]">
+          {/* Guest info banner */}
+          {mode === 'guest' && (
+            <div className="mb-4 p-3 border border-blue-900/60 rounded-md flex items-center bg-blue-950/30">
+              <AlertCircle size={20} className="text-blue-400 mr-2" />
+              <span className="text-blue-300 text-sm">
+                Guest uploads are limited to 1 GB total and are completely separate from admin uploads.
+              </span>
+            </div>
+          )}
           {/* Error Display */}
           {error && (
             <div className="mb-4 p-3 border border-red-900/60 rounded-md flex items-center bg-red-950/30">

@@ -188,9 +188,13 @@ export const db = {
   // Insert a file metadata record after successful upload
   async insertFileMetadata({ filename, key, size, owner = null, is_guest = false, entry_id = null }) {
     // Build a public URL based on Cloudflare R2 S3-compatible public URL format
-    const account = import.meta.env.VITE_R2_ACCOUNT_ID
-    const bucket = import.meta.env.VITE_R2_BUCKET_NAME
-    const publicUrl = account && bucket ? `https://${account}.r2.cloudflarestorage.com/${bucket}/${encodeURIComponent(key)}` : null
+    const account = import.meta.env.VITE_R2_ACCOUNT_ID || ''
+    const bucket = import.meta.env.VITE_R2_BUCKET_NAME || ''
+    // Always provide a non-null value to satisfy NOT NULL constraint.
+    // If env is missing, store a harmless placeholder; downloads use the object key with presigned URLs anyway.
+    const publicUrl = (account && bucket)
+      ? `https://${account}.r2.cloudflarestorage.com/${bucket}/${encodeURIComponent(key)}`
+      : `https://r2-placeholder.invalid/${encodeURIComponent(key)}`
 
     const result = await sql`
       INSERT INTO files (entry_id, file_url, file_name, file_size, key, owner, is_guest, created_at)

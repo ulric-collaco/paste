@@ -7,6 +7,7 @@ To run the project, first ensure you have **Node.js** installed. Then, navigate 
 To use it, visit the homepage and choose between:
 - **Admin mode**: Enter a passcode for permanent pastes 🔒
 - **Guest mode**: Shared editable paste for all users 👥
+	- Guests can upload files too (stored separately from admin uploads), with a 1 GB total limit.
 
 Create or edit pastes in the editor, save them, and share the generated URLs. Guests can view and edit the same shared paste collaboratively. 📤
 

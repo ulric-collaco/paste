@@ -291,8 +291,8 @@ const Paste = ({ mode }) => {
                     </div>
                 </div>
 
-                {/* Floating File Manager Button - Only show when authenticated */}
-                {isUserAuthenticated() && (
+                {/* Floating File Manager Button - show for admin (with passcode) and guests */}
+                {(mode === 'guest' || isUserAuthenticated()) && (
                     <button
                         onClick={() => currentEntryId && setIsFileManagerOpen(true)}
                         disabled={!currentEntryId}
@@ -301,7 +301,11 @@ const Paste = ({ mode }) => {
                                 ? 'bg-neutral-950 border-neutral-800 text-gray-200 hover:bg-neutral-900 hover:border-neutral-700'
                                 : 'bg-neutral-900 border-neutral-900 text-neutral-600 cursor-not-allowed opacity-75'
                         }`}
-                        title={currentEntryId ? "File Manager" : "Save your paste first to enable file management"}
+                        title={currentEntryId 
+                            ? (mode === 'guest' 
+                                ? 'File Manager (Guest uploads have a 1GB total limit and are separate from admin uploads)'
+                                : 'File Manager')
+                            : 'Save your paste first to enable file management'}
                     >
                         <Files size={24} />
                     </button>
