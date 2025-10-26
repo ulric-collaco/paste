@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { db } from '../lib/supabase';
+import { db, utils } from '../lib/neon';
 import { AlertCircle } from 'lucide-react';
 
 const StaticPaste = () => {
@@ -36,38 +36,25 @@ const StaticPaste = () => {
         fetchPaste();
     }, [slug]);
 
-    const formatDate = (dateString) => {
-        if (!dateString) return '...';
-        const date = new Date(dateString);
-        return date.toLocaleString('en-GB', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false
-        }) + ' UTC';
-    };
+    const formatDate = (dateString) => utils.formatDate(dateString);
 
     if (isLoading) {
         return (
-            <div className="bg-gray-800 min-h-screen flex items-center justify-center text-white">
+            <div className="bg-black min-h-screen flex items-center justify-center text-gray-300">
                 Loading paste...
             </div>
         );
     }
 
     return (
-        <div className="bg-gray-800 min-h-screen text-gray-300 font-sans flex justify-center py-10 px-4 sm:px-6 lg:px-8">
+        <div className="bg-black min-h-screen text-gray-300 font-sans flex justify-center py-10 px-4 sm:px-6 lg:px-8">
             <div className="max-w-5xl w-full space-y-6">
                 <div className="text-center">
-                    <h1 className="text-4xl font-extrabold text-white tracking-tight">
+                    <h1 className="heading-xl">
                         {paste ? 'View Paste' : 'Error'}
                     </h1>
                     {paste && (
-                         <p className="mt-4 text-lg text-blue-400">
-                            This is a read-only view.
-                         </p>
+                         <p className="mt-2 muted">Read-only view</p>
                     )}
                 </div>
 
@@ -79,7 +66,7 @@ const StaticPaste = () => {
                 )}
 
                 {paste && (
-                    <div className="bg-gray-900 shadow-lg rounded-lg overflow-hidden">
+                    <div className="surface overflow-hidden">
                         <pre className="p-6 overflow-x-auto min-h-96">
                             <code className="font-mono text-sm text-gray-100 whitespace-pre-wrap">
                                 {paste.content}
@@ -89,11 +76,11 @@ const StaticPaste = () => {
                 )}
 
                 <div className="flex flex-col sm:flex-row justify-between items-center mt-4 gap-4">
-                    <Link to="/" className="flex items-center px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600 transition-colors">
+                    <Link to="/" className="btn">
                         Back to Home
                     </Link>
                     {paste && (
-                        <div className="text-xs text-gray-500 flex flex-wrap justify-center sm:justify-end gap-x-4 gap-y-1">
+                        <div className="text-xs text-neutral-500 flex flex-wrap justify-center sm:justify-end gap-x-4 gap-y-1">
                             <span>Pub: {formatDate(paste.created_at)}</span>
                             {paste.is_guest && <span>Expires: {formatDate(paste.expires_at)}</span>}
                         </div>

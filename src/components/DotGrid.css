@@ -1,0 +1,21 @@
+
+.dot-grid {
+  display: block;
+  position: fixed; /* anchor to viewport for reliability */
+  inset: 0;
+  pointer-events: none; /* let the app handle interactions */
+}
+
+.dot-grid__wrap {
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+}
+
+.dot-grid__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}

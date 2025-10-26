@@ -1,8 +1,12 @@
 import React, { useState, useCallback } from 'react';
 import { X, Upload, Download, Trash2, AlertCircle } from 'lucide-react';
-import { db, utils } from '../lib/supabase.js';
+import { db, utils } from '../lib/neon';
+import { useApp } from '../contexts/AppContext';
+import R2UploadPanel from './R2UploadPanel';
+import { getSignedUrl, explainDownloadFailure } from '../lib/r2';
 
 const FileManager = ({ isOpen, onClose, entryId, files, onFilesChange }) => {
+  const { mode } = useApp();
   const [isDragOver, setIsDragOver] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -59,7 +63,7 @@ const FileManager = ({ isOpen, onClose, entryId, files, onFilesChange }) => {
       let completed = 0;
       
       for (const file of validFiles) {
-        // Upload file using existing Supabase method
+        // Upload file to storage
         const uploadedFile = await db.uploadFile(file, entryId);
         
         // Merge file_size into the uploaded file object for UI display
@@ -112,9 +116,31 @@ const FileManager = ({ isOpen, onClose, entryId, files, onFilesChange }) => {
     e.target.value = '';
   }, [handleFileUpload, isUploading]);
 
-  const handleDownload = useCallback((file) => {
-    // Open file URL in new tab for download
-    window.open(file.file_url, '_blank');
+  // No-op here; we use shared helper from lib/r2
+
+  const handleDownload = useCallback(async (file) => {
+    try {
+      if (!file.key) {
+        // Fallback: try opening stored URL, but likely private and will fail
+        window.open(file.file_url, '_blank');
+        return;
+      }
+  const url = await getSignedUrl(file.key, 'GET');
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(explainDownloadFailure(resp.status));
+      const blob = await resp.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = file.file_name || file.key;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error('Download error:', err);
+      setError(err.message || 'Failed to download file');
+    }
   }, []);
 
   const handleDelete = useCallback(async (file) => {
@@ -126,7 +152,26 @@ const FileManager = ({ isOpen, onClose, entryId, files, onFilesChange }) => {
     setError(null);
 
     try {
-      await db.deleteFile(file.id);
+      // Delete object from R2 if key exists
+      if (file.key) {
+        try {
+          const url = await getSignedUrl(file.key, 'DELETE');
+          const resp = await fetch(url, { method: 'DELETE' });
+          if (!resp.ok) console.warn('R2 delete failed with status', resp.status);
+        } catch (e) {
+          console.warn('Failed to delete from R2:', e);
+        }
+        // Remove metadata by key
+        try {
+          await db.deleteFileMetadata(file.key);
+        } catch (e) {
+          // fallback to id-based delete
+          await db.deleteFile(file.id);
+        }
+      } else {
+        // No key in record, remove by id only
+        await db.deleteFile(file.id);
+      }
       
       // Update parent component by removing deleted file
       onFilesChange(files.filter(f => f.id !== file.id));
@@ -141,104 +186,57 @@ const FileManager = ({ isOpen, onClose, entryId, files, onFilesChange }) => {
         return newSet;
       });
     }
-  }, [files, onFilesChange]);
+  }, [files, onFilesChange, getSignedUrl]);
 
   const formatFileSize = (bytes) => {
     if (!bytes || isNaN(bytes)) return 'Unknown size';
     return utils.formatFileSize ? utils.formatFileSize(bytes) : `${Math.round(bytes / 1024)} KB`;
   };
 
-  const formatUploadDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString();
-  };
+  // Use shared formatter
+  const formatUploadDate = (dateString) => utils.formatDate(dateString);
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="surface max-w-4xl w-full max-h-[90vh] overflow-hidden">
         {/* Modal Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-700">
+        <div className="flex items-center justify-between p-6 border-b border-neutral-900">
           <h2 className="text-xl font-semibold text-gray-100">File Manager</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-200 transition-colors"
-          >
+          <button onClick={onClose} className="text-neutral-400 hover:text-neutral-200 transition-colors">
             <X size={24} />
           </button>
         </div>
 
         {/* Modal Body */}
         <div className="p-6 overflow-y-auto max-h-[70vh]">
+          {/* Guest info banner */}
+          {mode === 'guest' && (
+            <div className="mb-4 p-3 border border-blue-900/60 rounded-md flex items-center bg-blue-950/30">
+              <AlertCircle size={20} className="text-blue-400 mr-2" />
+              <span className="text-blue-300 text-sm">
+                Guest uploads are limited to 1 GB total and are completely separate from admin uploads.
+              </span>
+            </div>
+          )}
           {/* Error Display */}
           {error && (
-            <div className="mb-4 p-3 bg-red-900 border border-red-700 rounded-md flex items-center">
+            <div className="mb-4 p-3 border border-red-900/60 rounded-md flex items-center bg-red-950/30">
               <AlertCircle size={20} className="text-red-400 mr-2" />
-              <span className="text-red-200">{error}</span>
+              <span className="text-red-300">{error}</span>
             </div>
           )}
 
-          {/* File Upload Section */}
+          {/* File Upload Section - R2 Upload Panel */}
           <div className="mb-8">
             <h3 className="text-lg font-medium text-gray-200 mb-4">Upload Files</h3>
-            
-            <div
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                isUploading
-                  ? 'pointer-events-none opacity-75'
-                  : isDragOver
-                  ? 'border-blue-400 bg-blue-900 bg-opacity-20'
-                  : 'border-gray-600 hover:border-gray-500'
-              }`}
-            >
-              {isUploading ? (
-                <div className="space-y-4">
-                  <div className="text-blue-400">
-                    <Upload size={48} className="mx-auto mb-2" />
-                    <p>Uploading files... {uploadProgress}%</p>
-                  </div>
-                  <div className="w-full bg-gray-700 rounded-full h-2">
-                    <div
-                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${uploadProgress}%` }}
-                    ></div>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <Upload size={48} className="mx-auto text-gray-400" />
-                  <div>
-                    <p className="text-gray-300 mb-2">
-                      Drag and drop files here, or click to select
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      Supports all file types (images, documents, videos, etc.)
-                    </p>
-                  </div>
-                  <input
-                    type="file"
-                    multiple
-                    onChange={handleFileSelect}
-                    disabled={isUploading}
-                    className="hidden"
-                    id="file-upload"
-                  />
-                  <label
-                    htmlFor="file-upload"
-                    className={`inline-block font-medium py-2 px-6 rounded-md transition-all duration-200 ${
-                      isUploading
-                        ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                        : 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer'
-                    }`}
-                  >
-                    Select Files
-                  </label>
-                </div>
-              )}
-            </div>
+            <R2UploadPanel
+              entryId={entryId}
+              isGuestMode={mode === 'guest'}
+              onFilesChange={(updatedList) => onFilesChange(updatedList)}
+              existingFiles={files}
+            />
           </div>
 
           {/* File List Section */}
@@ -248,7 +246,7 @@ const FileManager = ({ isOpen, onClose, entryId, files, onFilesChange }) => {
             </h3>
             
             {files.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-8 text-neutral-500">
                 <p>No files uploaded yet</p>
               </div>
             ) : (
@@ -256,32 +254,23 @@ const FileManager = ({ isOpen, onClose, entryId, files, onFilesChange }) => {
                 {files.map((file) => (
                   <div
                     key={file.id}
-                    className="flex items-center justify-between p-3 bg-gray-800 rounded-md hover:bg-gray-750 transition-colors"
+                    className="flex items-center justify-between p-3 bg-neutral-950 border border-neutral-900 rounded-md hover:border-neutral-800 transition-colors"
                   >
                     <div className="flex-1 min-w-0">
                       <p className="text-gray-200 font-medium truncate">
                         {file.file_name}
                       </p>
-                      <p className="text-sm text-gray-400">
+                      <p className="text-sm text-neutral-500">
                         {formatFileSize(file.file_size)} • {formatUploadDate(file.created_at)}
                       </p>
                     </div>
                     
                     <div className="flex items-center space-x-2 ml-4">
-                      <button
-                        onClick={() => handleDownload(file)}
-                        className="p-2 text-gray-400 hover:text-blue-400 transition-colors"
-                        title="Download"
-                      >
+                      <button onClick={() => handleDownload(file)} className="p-2 text-neutral-400 hover:text-neutral-200 transition-colors" title="Download">
                         <Download size={18} />
                       </button>
                       
-                      <button
-                        onClick={() => handleDelete(file)}
-                        disabled={deletingFiles.has(file.id)}
-                        className="p-2 text-gray-400 hover:text-red-400 transition-colors disabled:opacity-50"
-                        title="Delete"
-                      >
+                      <button onClick={() => handleDelete(file)} disabled={deletingFiles.has(file.id)} className="p-2 text-neutral-400 hover:text-red-400 transition-colors disabled:opacity-50" title="Delete">
                         {deletingFiles.has(file.id) ? (
                           <div className="animate-spin w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full"></div>
                         ) : (

@@ -38,92 +38,57 @@ const Landing = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
-      <div className="rentry-container min-h-[calc(100vh-80px)] flex items-center justify-center">
-        <div className="max-w-md w-full">
-          <div className="rentry-header">
-            <h1 className="text-6xl font-extralight text-gray-900 dark:text-gray-100 mb-6 tracking-tight">
-              Pastry
-            </h1>
-            <p className="text-xl text-gray-500 dark:text-gray-400 font-light leading-relaxed">
-              markdown pastebin service
-            </p>
-          </div>
+    <div className="min-h-screen">
+      <div className="container-page min-h-[calc(100vh-80px)] flex items-center justify-center">
+        <div className="w-full max-w-md relative z-10">
+          <header className="text-center mb-10">
+            <h1 className="heading-xl">Pastry</h1>
+            <p className="mt-3 text-neutral-400">Minimal markdown paste</p>
+          </header>
 
           <div className="space-y-4">
-            {/* Passcode Mode */}
-            <div className="card p-8">
-              <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
-                Enter with passcode
-              </h2>
-              <p className="text-gray-600 dark:text-gray-400 text-sm mb-6 leading-relaxed">
-                Access your personal, permanent paste that you can edit anytime.
-              </p>
-              
+            <div className="surface p-6">
+              <h2 className="text-base text-white mb-2">Enter with passcode</h2>
+              <p className="muted mb-5">Access your personal, permanent paste.</p>
+
               {!showPasscodeInput ? (
-                <button
-                  onClick={() => setShowPasscodeInput(true)}
-                  className="rentry-button w-full"
-                >
+                <button onClick={() => setShowPasscodeInput(true)} className="btn btn-primary w-full">
                   Enter Passcode
                 </button>
               ) : (
-                <form onSubmit={handlePasscodeSubmit} className="space-y-4">
+                <form onSubmit={handlePasscodeSubmit} className="space-y-3">
                   <input
                     type="password"
-                    placeholder="Enter your passcode..."
+                    placeholder="Passcode"
                     value={passcodeInput}
                     onChange={(e) => setPasscodeInput(e.target.value)}
-                    className="input-field"
+                    className="input"
                     autoFocus
                     required
                   />
-                  
-                  {/* Error message */}
                   {passcodeError && (
-                    <div className="flex items-center text-red-600 dark:text-red-400 text-sm">
+                    <div className="flex items-center text-red-400 text-sm">
                       <AlertCircle className="w-4 h-4 mr-2" />
                       {passcodeError}
                     </div>
                   )}
-                  
-                  <div className="flex space-x-3">
-                    <button type="submit" className="rentry-button flex-1">
-                      Continue
-                    </button>
-                    <button
-                      type="button"
-                      onClick={resetPasscodeInput}
-                      className="rentry-button-secondary px-6"
-                    >
-                      Cancel
-                    </button>
+                  <div className="flex gap-3">
+                    <button type="submit" className="btn btn-primary flex-1">Continue</button>
+                    <button type="button" onClick={resetPasscodeInput} className="btn btn-ghost px-6">Cancel</button>
                   </div>
                 </form>
               )}
             </div>
 
-            {/* Guest Mode */}
-            <div className="card p-8">
-              <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
-                Continue as guest
-              </h2>
-              <p className="text-gray-600 dark:text-gray-400 text-sm mb-6 leading-relaxed">
-                Create a temporary paste that automatically expires after 2 hours.
-              </p>
-              <button
-                onClick={handleGuestMode}
-                className="rentry-button-secondary w-full"
-              >
-                Continue as Guest
-              </button>
+            <div className="surface p-6">
+              <h2 className="text-base text-white mb-2">Continue as guest</h2>
+              <p className="muted mb-5">Create a universally accessible paste.</p>
+              <button onClick={handleGuestMode} className="btn w-full">Continue as Guest</button>
             </div>
           </div>
 
-          <div className="mt-12 text-center">
-            <p className="text-sm text-gray-400 dark:text-gray-500 font-light">
-              no registration • anonymous • markdown support
-            </p>
+          <div className="mt-10 text-center">
+            <p className="muted">no account • anonymous • markdown</p>
           </div>
         </div>
       </div>
