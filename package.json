@@ -18,7 +18,7 @@
     "react-router-dom": "^6.20.1",
     "react-syntax-highlighter": "^16.0.0",
     "remark-gfm": "^4.0.1",
-    "wrangler": "^4.45.0"
+    "wrangler": "^4.45.3"
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.16",
