@@ -1,0 +1,16 @@
+name = "paste-api"
+main = "src/index.js"
+compatibility_date = "2024-03-01"
+
+[[d1_databases]]
+binding = "DB" # i.e. available in your Worker on env.DB
+database_name = "paste-db"
+database_id = "PLEASE_REPLACE_WITH_YOUR_D1_DATABASE_ID"
+
+# [vars]
+# R2 Environment Variables for file uploads
+# VITE_R2_ACCOUNT_ID = "..." (Access via env.VITE_R2_ACCOUNT_ID)
+# VITE_R2_BUCKET_NAME = "..."
+
+# [files]
+# bucket = "./public" # Not needed for API-only worker (this isn't a static site)

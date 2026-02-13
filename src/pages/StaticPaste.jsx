@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { db, utils } from '../lib/neon';
+import { db, utils } from '../lib/api';
 import { AlertCircle } from 'lucide-react';
 
 const StaticPaste = () => {
@@ -54,7 +54,7 @@ const StaticPaste = () => {
                         {paste ? 'View Paste' : 'Error'}
                     </h1>
                     {paste && (
-                         <p className="mt-2 muted">Read-only view</p>
+                        <p className="mt-2 muted">Read-only view</p>
                     )}
                 </div>
 

@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { X, Upload, Download, Trash2, AlertCircle } from 'lucide-react';
-import { db, utils } from '../lib/neon';
+import { db, utils } from '../lib/api';
 import { useApp } from '../contexts/AppContext';
 import R2UploadPanel from './R2UploadPanel';
 import { getSignedUrl, explainDownloadFailure } from '../lib/r2';
@@ -61,11 +61,11 @@ const FileManager = ({ isOpen, onClose, entryId, files, onFilesChange }) => {
     try {
       const uploadedFiles = [];
       let completed = 0;
-      
+
       for (const file of validFiles) {
         // Upload file to storage
         const uploadedFile = await db.uploadFile(file, entryId);
-        
+
         // Merge file_size into the uploaded file object for UI display
         uploadedFiles.push({
           ...uploadedFile,
@@ -79,7 +79,7 @@ const FileManager = ({ isOpen, onClose, entryId, files, onFilesChange }) => {
 
       // Update parent component with new files
       onFilesChange([...files, ...uploadedFiles]);
-      
+
     } catch (error) {
       console.error('Upload error:', error);
       setError(error.message || 'Failed to upload files');
@@ -125,9 +125,9 @@ const FileManager = ({ isOpen, onClose, entryId, files, onFilesChange }) => {
         window.open(file.file_url, '_blank');
         return;
       }
-  const url = await getSignedUrl(file.key, 'GET');
-  const resp = await fetch(url);
-  if (!resp.ok) throw new Error(explainDownloadFailure(resp.status));
+      const url = await getSignedUrl(file.key, 'GET');
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(explainDownloadFailure(resp.status));
       const blob = await resp.blob();
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -172,10 +172,10 @@ const FileManager = ({ isOpen, onClose, entryId, files, onFilesChange }) => {
         // No key in record, remove by id only
         await db.deleteFile(file.id);
       }
-      
+
       // Update parent component by removing deleted file
       onFilesChange(files.filter(f => f.id !== file.id));
-      
+
     } catch (error) {
       console.error('Delete error:', error);
       setError(error.message || 'Failed to delete file');
@@ -244,7 +244,7 @@ const FileManager = ({ isOpen, onClose, entryId, files, onFilesChange }) => {
             <h3 className="text-lg font-medium text-gray-200 mb-4">
               Files ({files.length})
             </h3>
-            
+
             {files.length === 0 ? (
               <div className="text-center py-8 text-neutral-500">
                 <p>No files uploaded yet</p>
@@ -264,12 +264,12 @@ const FileManager = ({ isOpen, onClose, entryId, files, onFilesChange }) => {
                         {formatFileSize(file.file_size)} • {formatUploadDate(file.created_at)}
                       </p>
                     </div>
-                    
+
                     <div className="flex items-center space-x-2 ml-4">
                       <button onClick={() => handleDownload(file)} className="p-2 text-neutral-400 hover:text-neutral-200 transition-colors" title="Download">
                         <Download size={18} />
                       </button>
-                      
+
                       <button onClick={() => handleDelete(file)} disabled={deletingFiles.has(file.id)} className="p-2 text-neutral-400 hover:text-red-400 transition-colors disabled:opacity-50" title="Delete">
                         {deletingFiles.has(file.id) ? (
                           <div className="animate-spin w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full"></div>

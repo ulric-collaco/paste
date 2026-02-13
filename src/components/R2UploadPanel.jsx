@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Upload, Download, Trash2 } from 'lucide-react'
-import { db, utils } from '../lib/neon'
+import { db, utils } from '../lib/api'
 import { getSignedUrl, explainDownloadFailure } from '../lib/r2'
 
 // Small helper to format bytes
@@ -62,11 +62,11 @@ export default function R2UploadPanel({ entryId, isGuestMode, onFilesChange, exi
   const uploadToR2 = (file, key, onProgress) => {
     return new Promise(async (resolve, reject) => {
       try {
-  const url = await getSignedUrl(key, 'PUT')
+        const url = await getSignedUrl(key, 'PUT')
 
-  const xhr = new XMLHttpRequest()
-  xhr.open('PUT', url, true)
-  // Do not set custom x-amz-* headers to avoid CORS preflight
+        const xhr = new XMLHttpRequest()
+        xhr.open('PUT', url, true)
+        // Do not set custom x-amz-* headers to avoid CORS preflight
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable) {
             const pct = Math.round((e.loaded / e.total) * 100)
@@ -152,7 +152,7 @@ export default function R2UploadPanel({ entryId, isGuestMode, onFilesChange, exi
   const handleDownload = async (fileMeta) => {
     try {
       // Use signed GET URL
-  const url = await getSignedUrl(fileMeta.key, 'GET')
+      const url = await getSignedUrl(fileMeta.key, 'GET')
       // Debug: ensure we see encoded credential and fresh date
       try {
         const u = new URL(url)
@@ -160,11 +160,11 @@ export default function R2UploadPanel({ entryId, isGuestMode, onFilesChange, exi
         console.log('[r2-download] X-Amz-Date:', u.searchParams.get('X-Amz-Date'), 'now:', new Date().toISOString())
         // eslint-disable-next-line no-console
         console.log('[r2-download] X-Amz-Credential:', u.searchParams.get('X-Amz-Credential'))
-      } catch (_) {}
+      } catch (_) { }
 
       // Fetch as blob to avoid extensions stripping query params on navigation
-  const resp = await fetch(url, { method: 'GET' })
-  if (!resp.ok) throw new Error(explainDownloadFailure(resp.status))
+      const resp = await fetch(url, { method: 'GET' })
+      if (!resp.ok) throw new Error(explainDownloadFailure(resp.status))
       const blob = await resp.blob()
       const blobUrl = URL.createObjectURL(blob)
       const a = document.createElement('a')

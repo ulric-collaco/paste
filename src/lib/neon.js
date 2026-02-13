@@ -10,7 +10,7 @@ if (!connectionString) {
 const sql = neon(connectionString)
 
 // Database operations
-export const db = {
+export const db = {ap
   // Create or update a paste entry
   async createOrUpdateEntry(data, passcode) {
     if (data.is_guest) {
