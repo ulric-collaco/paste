@@ -5,7 +5,7 @@ compatibility_date = "2024-03-01"
 [[d1_databases]]
 binding = "DB" # i.e. available in your Worker on env.DB
 database_name = "paste-db"
-database_id = "PLEASE_REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "b4c64624-b325-4496-a012-710b1a47e1e2"
 
 # [vars]
 # R2 Environment Variables for file uploads

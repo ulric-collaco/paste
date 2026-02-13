@@ -10,7 +10,7 @@ if (!connectionString) {
 const sql = neon(connectionString)
 
 // Database operations
-export const db = {ap
+export const db = {
   // Create or update a paste entry
   async createOrUpdateEntry(data, passcode) {
     if (data.is_guest) {
@@ -26,13 +26,13 @@ export const db = {ap
       `
       return result[0]
     }
-    
+
     if (passcode) {
       // Check if entry exists
       const existing = await sql`
         SELECT * FROM entries WHERE passcode = ${passcode}
       `
-      
+
       if (existing.length > 0) {
         // Update existing entry
         const result = await sql`
@@ -97,7 +97,7 @@ export const db = {ap
       WHERE e.slug = ${slug}
       GROUP BY e.id
     `
-    
+
     if (entries.length === 0) {
       throw new Error('Entry not found')
     }
@@ -126,7 +126,7 @@ export const db = {ap
       WHERE e.passcode = ${passcode}
       GROUP BY e.id
     `
-    
+
     return entries.length > 0 ? entries[0] : null
   },
 
@@ -227,16 +227,16 @@ export const db = {ap
     const files = await sql`
       SELECT * FROM files WHERE id = ${fileId}
     `
-    
+
     if (files.length === 0) {
       throw new Error('File not found')
     }
-    
+
     const fileRecord = files[0]
-    
+
     // Delete file record from database
     await sql`DELETE FROM files WHERE id = ${fileId}`
-    
+
     return { success: true, id: fileId, deletedFile: fileRecord }
   },
 
