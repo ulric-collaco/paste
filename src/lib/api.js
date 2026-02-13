@@ -96,6 +96,19 @@ export const db = {
     async uploadFile(file, entryId) {
         throw new Error('File upload not implemented. Please configure an external storage provider (S3, R2, Vercel Blob, etc.)');
     },
+
+    // Securely verify passcode via API (server-side check)
+    async verifyPasscode(passcode) {
+        try {
+            const res = await fetchApi('/verify-passcode', {
+                method: 'POST',
+                body: JSON.stringify({ passcode })
+            });
+            return res && res.valid;
+        } catch (e) {
+            return false;
+        }
+    },
 };
 
 // Utility functions - copied from neon.js as they are client-side helpers

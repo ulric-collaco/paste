@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState } from 'react'
+import { db } from '../lib/api'
 
 const AppContext = createContext()
 
@@ -35,18 +36,20 @@ export const AppProvider = ({ children }) => {
   const [mode, setMode] = useState(() => getCookie('mode') || null) // 'passcode' or 'guest'
   const [passcode, setPasscode] = useState(() => getCookie('passcode') || '')
 
-  // Validate passcode against environment variables and return user identifier
-  const validatePasscode = (inputPasscode) => {
-    const passcode1 = import.meta.env.VITE_DEV_PASSCODE
-    const passcode2 = import.meta.env.VITE_DEV_PASSCODE_2
-    
-    if (inputPasscode === passcode1) return 'user_1'
-    if (inputPasscode === passcode2) return 'user_2'
-    return null
+
+
+  // Validate passcode against server
+  const validatePasscode = async (inputPasscode) => {
+    try {
+      const isValid = await db.verifyPasscode(inputPasscode)
+      return isValid ? 'user_verified' : null
+    } catch {
+      return null
+    }
   }
 
-  const setPasscodeMode = (code) => {
-    const userId = validatePasscode(code)
+  const setPasscodeMode = async (code) => {
+    const userId = await validatePasscode(code)
     if (userId) {
       setMode('passcode')
       setPasscode(code)
@@ -60,6 +63,7 @@ export const AppProvider = ({ children }) => {
     }
     return false
   }
+
 
   const setGuestMode = () => {
     setMode('guest')

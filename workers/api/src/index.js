@@ -16,6 +16,28 @@ function generateSlug(length = 8) {
     return result;
 }
 
+// POST /api/verify-passcode
+app.post('/api/verify-passcode', async (c) => {
+    const { passcode } = await c.req.json();
+
+    // You can set these in wrangler.toml or via `wrangler secret put`
+    const allowedPasscodes = [
+        c.env.DEV_PASSCODE,
+        c.env.DEV_PASSCODE_2
+    ].filter(Boolean); // Filter out undefined if not set
+
+    // If no passcodes are set in env, allow none (secure default)
+    if (allowedPasscodes.length === 0) {
+        return c.json({ valid: false, error: 'No passcodes configured on server' }, 403);
+    }
+
+    if (allowedPasscodes.includes(passcode)) {
+        return c.json({ valid: true });
+    }
+
+    return c.json({ valid: false }, 401);
+});
+
 // GET /api/entries/:slug
 app.get('/api/entries/:slug', async (c) => {
     const slug = c.req.param('slug');
