@@ -43,13 +43,13 @@ const Landing = () => {
         <div className="w-full max-w-md relative z-10">
           <header className="text-center mb-10">
             <h1 className="heading-xl">Pastry</h1>
-            <p className="mt-3 text-neutral-400">Minimal markdown paste</p>
+            <p className="mt-3 text-neutral-400">Your universal cross-device clipboard & file sync</p>
           </header>
 
           <div className="space-y-4">
             <div className="surface p-6">
               <h2 className="text-base text-white mb-2">Enter with passcode</h2>
-              <p className="muted mb-5">Access your personal, permanent paste.</p>
+              <p className="muted mb-5">Access your synced clipboard across all your devices.</p>
 
               {!showPasscodeInput ? (
                 <button onClick={() => setShowPasscodeInput(true)} className="btn btn-primary w-full">
@@ -82,13 +82,13 @@ const Landing = () => {
 
             <div className="surface p-6">
               <h2 className="text-base text-white mb-2">Continue as guest</h2>
-              <p className="muted mb-5">Create a universally accessible paste.</p>
+              <p className="muted mb-5">Quickly drop text or files to share between computers.</p>
               <button onClick={handleGuestMode} className="btn w-full">Continue as Guest</button>
             </div>
           </div>
 
           <div className="mt-10 text-center">
-            <p className="muted">no account • anonymous • markdown</p>
+            <p className="muted">sync anywhere • fast file drops • markdown</p>
           </div>
         </div>
       </div>

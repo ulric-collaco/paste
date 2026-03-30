@@ -1,6 +1,6 @@
 # Pastry
 
-> Anonymous pastebin with file storage — built on Cloudflare's global edge network.
+> Universal cross-device clipboard & file sync — built on Cloudflare's global edge network.
 
 **Live:** [paste.collacou.com](https://paste.collacou.com) &nbsp;|&nbsp; **API:** [paste-api.collacou.workers.dev](https://paste-api.collacou.workers.dev/api/v1/health)
 
@@ -8,7 +8,7 @@
 
 ## What it is
 
-Pastry is a production-grade pastebin inspired by rentry. It supports Markdown rendering, passcode-protected permanent pastes, an anonymous guest mode, and R2-backed file uploads — all running serverlessly at the edge with zero cold starts.
+Pastry is a universal cross-device clipboard and file sync tool. It supports Markdown rendering, synced personal clipboards, a quick drop mode for easy sharing, and R2-backed file uploads — all running serverlessly at the edge with zero cold starts.
 
 It's intentionally kept scope-focused so the system design and backend engineering decisions are visible, not buried.
 

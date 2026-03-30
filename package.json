@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "gsap": "^3.14.2",
-    "lucide-react": "^0.546.0",
     "@aws-sdk/client-s3": "^3.980.0",
     "@supabase/supabase-js": "^2.38.4",
     "lucide-react": "^0.562.0",
