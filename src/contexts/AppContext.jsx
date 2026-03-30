@@ -41,21 +41,24 @@ export const AppProvider = ({ children }) => {
   // Validate passcode against server
   const validatePasscode = async (inputPasscode) => {
     try {
-      const isValid = await db.verifyPasscode(inputPasscode)
-      return isValid ? 'user_verified' : null
+      const res = await db.verifyPasscode(inputPasscode)
+      if (res && res.valid && res.token) {
+        return res.token;
+      }
+      return null
     } catch {
       return null
     }
   }
 
   const setPasscodeMode = async (code) => {
-    const userId = await validatePasscode(code)
-    if (userId) {
+    const token = await validatePasscode(code)
+    if (token) {
       setMode('passcode')
-      setPasscode(code)
+      setPasscode('hidden') // don't store plain passcode
       try {
         setCookie('mode', 'passcode')
-        setCookie('passcode', code)
+        setCookie('session_token', token) // Store token!
       } catch (e) {
         // ignore
       }
@@ -81,7 +84,7 @@ export const AppProvider = ({ children }) => {
     setPasscode('')
     try {
       deleteCookie('mode')
-      deleteCookie('passcode')
+      deleteCookie('session_token') // update deletion
     } catch (e) {
       // ignore
     }

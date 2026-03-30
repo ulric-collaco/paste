@@ -1,28 +1,49 @@
-
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787'; // Default for local dev
+
+export const getToken = () => {
+    if (typeof document === 'undefined') return null;
+    return document.cookie.split('; ').reduce((r, v) => {
+        const parts = v.split('=');
+        return parts[0] === 'session_token' ? decodeURIComponent(parts[1]) : r;
+    }, null);
+}
 
 // Helper to handle API responses
 async function fetchApi(endpoint, options = {}) {
-    const url = `${API_URL}/api${endpoint}`;
+    const url = `${API_URL}/api/v1${endpoint}`;
+    const token = getToken();
+    const headers = {
+        'Content-Type': 'application/json',
+        ...options.headers,
+    };
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const response = await fetch(url, {
-        headers: {
-            'Content-Type': 'application/json',
-            ...options.headers,
-        },
         ...options,
+        headers
     });
 
     if (!response.ok) {
         if (response.status === 404) return null; // Handle not found gracefully in some cases
-        const errorText = await response.text();
-        throw new Error(`API Error ${response.status}: ${errorText}`);
+        let errorMsg = `API Error ${response.status}`;
+        try {
+            const errorJson = await response.json();
+            if (errorJson.error) errorMsg = errorJson.error.message;
+        } catch (_) {
+            errorMsg += `: ${await response.text()}`;
+        }
+        throw new Error(errorMsg);
     }
 
     // Handle empty responses (e.g. DELETE)
     if (response.status === 204) return null;
 
     try {
-        return await response.json();
+        const json = await response.json();
+        if (json && json.data !== undefined) return json.data;
+        return json;
     } catch (e) {
         return null;
     }
@@ -31,6 +52,7 @@ async function fetchApi(endpoint, options = {}) {
 export const db = {
     // Create or update a paste entry
     async createOrUpdateEntry(data, passcode) {
+        // passcode is optional now if token is used
         const result = await fetchApi('/entries', {
             method: 'POST',
             body: JSON.stringify({ data, passcode }),
@@ -44,8 +66,8 @@ export const db = {
         return entry;
     },
 
-    async getEntryByPasscode(passcode) {
-        return await fetchApi(`/entries/passcode/${passcode}`);
+    async getEntryByPasscode() {
+        return await fetchApi(`/entries/me`);
     },
 
     // Delete entry
@@ -54,16 +76,22 @@ export const db = {
     },
 
     // Clear content
-    async clearEntry(passcode) {
-        return await fetchApi(`/entries/passcode/${passcode}/clear`, { method: 'PUT' });
+    async clearEntry(id) {
+        return await fetchApi(`/entries/${id}/clear`, { method: 'PATCH' });
     },
 
-    // Upload file - metadata insertion
-    async insertFileMetadata(fileData) {
-        return await fetchApi('/files', {
+    // Confirm file upload — server verifies object exists in R2, enforces quota, then inserts DB record.
+    // Call this AFTER the client has PUT the file to R2 via presigned URL.
+    async confirmFileUpload(fileData) {
+        return await fetchApi('/files/confirm', {
             method: 'POST',
             body: JSON.stringify(fileData),
         });
+    },
+
+    // Legacy alias kept for backward compatibility — calls confirm under the hood
+    async insertFileMetadata(fileData) {
+        return this.confirmFileUpload(fileData);
     },
 
     // Delete metadata by key
@@ -100,20 +128,22 @@ export const db = {
     // Securely verify passcode via API (server-side check)
     async verifyPasscode(passcode) {
         try {
-            const res = await fetchApi('/verify-passcode', {
+            const res = await fetchApi('/auth/login', {
                 method: 'POST',
                 body: JSON.stringify({ passcode })
             });
-            return res && res.valid;
+            // res = { valid: true, token: 'xxx' } (due to fetchApi unwrap not applying here maybe? Actually, verifyPasscode might return { valid, token } since it doesn't have a 'data' envelope)
+            // Wait, my API returns c.json({ valid: true, token }) without a data wrapper.
+            // fetchApi will return it directly since json.data is undefined
+            return res;
         } catch (e) {
             return false;
         }
     },
 };
 
-// Utility functions - copied from neon.js as they are client-side helpers
+// Utility functions
 export const utils = {
-    // Generate unique slug
     generateSlug(length = 8) {
         const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
         let result = ''
@@ -123,7 +153,6 @@ export const utils = {
         return result
     },
 
-    // Format file size
     formatFileSize(bytes) {
         if (bytes === 0) return '0 Bytes'
         const k = 1024
@@ -132,7 +161,6 @@ export const utils = {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
     },
 
-    // Format a date (Date or ISO string) as en-GB with UTC suffix
     formatDate(dateInput) {
         if (!dateInput) return '...'
         const date = dateInput instanceof Date ? dateInput : new Date(dateInput)
@@ -153,7 +181,6 @@ export const utils = {
         }
     },
 
-    // Copy to clipboard
     async copyToClipboard(text) {
         try {
             await navigator.clipboard.writeText(text)

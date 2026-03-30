@@ -3,14 +3,24 @@ main = "src/index.js"
 compatibility_date = "2024-03-01"
 
 [[d1_databases]]
-binding = "DB" # i.e. available in your Worker on env.DB
+binding = "DB"
 database_name = "paste-db"
 database_id = "b4c64624-b325-4496-a012-710b1a47e1e2"
 
-# [vars]
-# R2 Environment Variables for file uploads
-# VITE_R2_ACCOUNT_ID = "..." (Access via env.VITE_R2_ACCOUNT_ID)
-# VITE_R2_BUCKET_NAME = "..."
+# R2 Bucket Binding — gives the Worker native access to R2 (no presigned URLs needed for deletes)
+# Create binding in CF dashboard: Workers & Pages → paste-api → Settings → R2 Bucket Bindings
+# Or uncomment below after running: wrangler r2 bucket create pastry
+#
+# [[r2_buckets]]
+# binding = "R2_BUCKET"
+# bucket_name = "pastry"
 
-# [files]
-# bucket = "./public" # Not needed for API-only worker (this isn't a static site)
+# All sensitive values must be set via `wrangler secret put <NAME>`
+# Never commit values here.
+#
+# Required secrets:
+#   wrangler secret put TOKEN_SECRET         (JWT signing key, must match r2-signer)
+#   wrangler secret put DEV_PASSCODE         (admin passcode 1)
+#   wrangler secret put DEV_PASSCODE_2       (admin passcode 2, optional)
+#   wrangler secret put R2_ACCOUNT_ID        (for building public R2 URLs)
+#   wrangler secret put R2_BUCKET_NAME       (R2 bucket name)

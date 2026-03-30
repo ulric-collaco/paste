@@ -61,6 +61,7 @@ const Paste = ({ mode }) => {
     const [isFileManagerOpen, setIsFileManagerOpen] = useState(false);
     const [entryFiles, setEntryFiles] = useState([]);
     const [currentEntryId, setCurrentEntryId] = useState(null);
+    const [hasAuthError, setHasAuthError] = useState(false);
     const { passcode, resetMode, getCookie } = useApp();
     const navigate = useNavigate();
 
@@ -69,17 +70,15 @@ const Paste = ({ mode }) => {
             setIsLoading(true);
             try {
                 if (mode === 'admin') {
-                    // Only allow access to /admin when a passcode cookie/context is present.
-                    const cookiePass = getCookie('passcode')
-                    if (!passcode && !cookiePass) {
-                        // No passcode in context or cookie — block direct access
+                    // Only allow access to /admin when a token cookie/context is present.
+                    const cookieToken = getCookie('session_token')
+                    if (!passcode && !cookieToken) {
                         navigate('/')
                         return
                     }
+                    if (hasAuthError) return;
 
-                    const effectivePass = passcode || cookiePass
-                    // use effectivePass for admin entry lookups
-                    const entry = await db.getEntryByPasscode(effectivePass)
+                    const entry = await db.getEntryByPasscode()
                     if (entry) {
                         setContent(entry.content || '');
                         setEditedContent(entry.content || '');
@@ -133,6 +132,14 @@ const Paste = ({ mode }) => {
                     }
                 }
             } catch (err) {
+                if (err.message && (err.message.includes('Token') || err.message.includes('401') || err.message.includes('Unauthorized'))) {
+                    setHasAuthError(true);
+                    document.cookie = 'session_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+                    document.cookie = 'session_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/admin';
+                    resetMode();
+                    window.location.href = '/';
+                    return;
+                }
                 setError('Failed to load paste. Please try again.');
                 console.error(err);
             } finally {
@@ -164,9 +171,7 @@ const Paste = ({ mode }) => {
                 is_guest: mode === 'guest',
             };
 
-            const cookiePass = getCookie('passcode');
-            const effectivePass = passcode || cookiePass;
-            const savedEntry = await db.createOrUpdateEntry(entryData, effectivePass);
+            const savedEntry = await db.createOrUpdateEntry(entryData);
 
             setContent(savedEntry.content);
             setEditDate(new Date(savedEntry.updated_at || savedEntry.created_at));
@@ -200,8 +205,8 @@ const Paste = ({ mode }) => {
     };
 
     const isUserAuthenticated = () => {
-        const cookiePass = getCookie('passcode')
-        return !!(passcode || cookiePass)
+        const cookieToken = getCookie('session_token')
+        return !!(passcode || cookieToken)
     };
 
     if (isLoading) {

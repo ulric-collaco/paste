@@ -10,12 +10,12 @@ const Landing = () => {
   const { setPasscodeMode, setGuestMode } = useApp()
   const navigate = useNavigate()
 
-  const handlePasscodeSubmit = (e) => {
+  const handlePasscodeSubmit = async (e) => {
     e.preventDefault()
     setPasscodeError('')
     
     if (passcodeInput.trim()) {
-      const isValid = setPasscodeMode(passcodeInput.trim())
+      const isValid = await setPasscodeMode(passcodeInput.trim())
       if (isValid) {
         // After successful passcode entry, navigate to admin route
         navigate('/admin')

@@ -11,6 +11,9 @@
         "wrangler": "^3.0.0"
     },
     "dependencies": {
-        "hono": "^4.0.0"
+        "@hono/zod-validator": "^0.7.6",
+        "hono": "^4.0.0",
+        "hono-rate-limiter": "^0.5.3",
+        "zod": "^4.3.6"
     }
 }
