@@ -231,10 +231,10 @@ const Paste = ({ mode }) => {
 
                 <div className="text-center">
                     <h1 className="heading-xl">
-                        {mode === 'admin' ? 'Admin Paste' : 'Guest Paste'}
+                        {mode === 'admin' ? 'Personal Clipboard' : 'Quick Drop'}
                     </h1>
                     <p className="mt-2 muted">
-                        {mode === 'admin' ? 'Your permanent, editable paste.' : 'A shared paste anyone can edit.'}
+                        {mode === 'admin' ? 'Your synced clipboard. Access this from any device.' : 'A temporary drop space for fast cross-device sharing.'}
                     </p>
                 </div>
 
