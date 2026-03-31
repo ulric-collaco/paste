@@ -1,2 +1,43 @@
+# ─── Environment & Secrets ──────────────────────────────────────────────────
 .env
-node_modules
+.env.local
+.env.*.local
+.dev.vars                   # Wrangler local dev secrets
+
+# ─── Node ───────────────────────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ─── Build Output ───────────────────────────────────────────────────────────
+dist/
+build/
+.output/
+
+# ─── Vite ───────────────────────────────────────────────────────────────────
+*.local
+
+# ─── Wrangler / Cloudflare ──────────────────────────────────────────────────
+.wrangler/
+wrangler-session-*.log
+
+# ─── Logs & Debug ───────────────────────────────────────────────────────────
+*.log
+deploy.log
+build_err*.txt
+build_output*.log
+
+# ─── IDE / OS ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/settings.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# ─── Vercel ─────────────────────────────────────────────────────────────────
+.vercel/

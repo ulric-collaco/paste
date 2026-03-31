@@ -1,7 +1,47 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { db, utils } from '../lib/neon';
+import { db, utils } from '../lib/api';
 import { AlertCircle } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { tomorrow } from 'react-syntax-highlighter/dist/esm/styles/prism';
+
+const CodeBlock = ({ node, inline, className, children, ...props }) => {
+    const code = String(children).replace(/\n$/, '');
+    const match = /language-(\w+)/.exec(className || '');
+    const language = match ? match[1] : '';
+
+    const handleCopy = useCallback(async () => {
+        try {
+            await navigator.clipboard.writeText(code);
+        } catch (err) {
+            const textarea = document.createElement('textarea');
+            textarea.value = code;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+        }
+    }, [code]);
+
+    return !inline ? (
+        <div className="relative my-4">
+            <div className="absolute right-2 top-2">
+                <button onClick={handleCopy} className="text-xs bg-gray-700 text-white px-2 py-1 rounded hover:bg-gray-600">
+                    Copy
+                </button>
+            </div>
+            <SyntaxHighlighter language={language} style={tomorrow} PreTag="div" {...props}>
+                {code}
+            </SyntaxHighlighter>
+        </div>
+    ) : (
+        <code className={className} {...props}>
+            {children}
+        </code>
+    );
+};
 
 const StaticPaste = () => {
     const { slug } = useParams();
@@ -54,7 +94,7 @@ const StaticPaste = () => {
                         {paste ? 'View Paste' : 'Error'}
                     </h1>
                     {paste && (
-                         <p className="mt-2 muted">Read-only view</p>
+                        <p className="mt-2 muted">Read-only view</p>
                     )}
                 </div>
 
@@ -67,11 +107,16 @@ const StaticPaste = () => {
 
                 {paste && (
                     <div className="surface overflow-hidden">
-                        <pre className="p-6 overflow-x-auto min-h-96">
-                            <code className="font-mono text-sm text-gray-100 whitespace-pre-wrap">
+                        <div className="prose p-6 overflow-x-auto min-h-96">
+                            <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                components={{
+                                    code: CodeBlock,
+                                }}
+                            >
                                 {paste.content}
-                            </code>
-                        </pre>
+                            </ReactMarkdown>
+                        </div>
                     </div>
                 )}
 
