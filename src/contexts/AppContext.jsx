@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState } from 'react'
+import { db } from '../lib/api'
 
 const AppContext = createContext()
 
@@ -35,24 +36,29 @@ export const AppProvider = ({ children }) => {
   const [mode, setMode] = useState(() => getCookie('mode') || null) // 'passcode' or 'guest'
   const [passcode, setPasscode] = useState(() => getCookie('passcode') || '')
 
-  // Validate passcode against environment variables and return user identifier
-  const validatePasscode = (inputPasscode) => {
-    const passcode1 = import.meta.env.VITE_DEV_PASSCODE
-    const passcode2 = import.meta.env.VITE_DEV_PASSCODE_2
-    
-    if (inputPasscode === passcode1) return 'user_1'
-    if (inputPasscode === passcode2) return 'user_2'
-    return null
+
+
+  // Validate passcode against server
+  const validatePasscode = async (inputPasscode) => {
+    try {
+      const res = await db.verifyPasscode(inputPasscode)
+      if (res && res.valid && res.token) {
+        return res.token;
+      }
+      return null
+    } catch {
+      return null
+    }
   }
 
-  const setPasscodeMode = (code) => {
-    const userId = validatePasscode(code)
-    if (userId) {
+  const setPasscodeMode = async (code) => {
+    const token = await validatePasscode(code)
+    if (token) {
       setMode('passcode')
-      setPasscode(code)
+      setPasscode('hidden') // don't store plain passcode
       try {
         setCookie('mode', 'passcode')
-        setCookie('passcode', code)
+        setCookie('session_token', token) // Store token!
       } catch (e) {
         // ignore
       }
@@ -60,6 +66,7 @@ export const AppProvider = ({ children }) => {
     }
     return false
   }
+
 
   const setGuestMode = () => {
     setMode('guest')
@@ -77,7 +84,7 @@ export const AppProvider = ({ children }) => {
     setPasscode('')
     try {
       deleteCookie('mode')
-      deleteCookie('passcode')
+      deleteCookie('session_token') // update deletion
     } catch (e) {
       // ignore
     }

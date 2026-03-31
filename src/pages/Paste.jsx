@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
-import { db, utils } from '../lib/neon';
+import { db, utils } from '../lib/api';
 import { Edit, Save, X, AlertCircle, Files } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -61,6 +61,7 @@ const Paste = ({ mode }) => {
     const [isFileManagerOpen, setIsFileManagerOpen] = useState(false);
     const [entryFiles, setEntryFiles] = useState([]);
     const [currentEntryId, setCurrentEntryId] = useState(null);
+    const [hasAuthError, setHasAuthError] = useState(false);
     const { passcode, resetMode, getCookie } = useApp();
     const navigate = useNavigate();
 
@@ -69,17 +70,15 @@ const Paste = ({ mode }) => {
             setIsLoading(true);
             try {
                 if (mode === 'admin') {
-                    // Only allow access to /admin when a passcode cookie/context is present.
-                    const cookiePass = getCookie('passcode')
-                    if (!passcode && !cookiePass) {
-                        // No passcode in context or cookie — block direct access
+                    // Only allow access to /admin when a token cookie/context is present.
+                    const cookieToken = getCookie('session_token')
+                    if (!passcode && !cookieToken) {
                         navigate('/')
                         return
                     }
+                    if (hasAuthError) return;
 
-                    const effectivePass = passcode || cookiePass
-                    // use effectivePass for admin entry lookups
-                    const entry = await db.getEntryByPasscode(effectivePass)
+                    const entry = await db.getEntryByPasscode()
                     if (entry) {
                         setContent(entry.content || '');
                         setEditedContent(entry.content || '');
@@ -133,6 +132,14 @@ const Paste = ({ mode }) => {
                     }
                 }
             } catch (err) {
+                if (err.message && (err.message.includes('Token') || err.message.includes('401') || err.message.includes('Unauthorized'))) {
+                    setHasAuthError(true);
+                    document.cookie = 'session_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+                    document.cookie = 'session_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/admin';
+                    resetMode();
+                    window.location.href = '/';
+                    return;
+                }
                 setError('Failed to load paste. Please try again.');
                 console.error(err);
             } finally {
@@ -164,15 +171,13 @@ const Paste = ({ mode }) => {
                 is_guest: mode === 'guest',
             };
 
-            const cookiePass = getCookie('passcode');
-            const effectivePass = passcode || cookiePass;
-            const savedEntry = await db.createOrUpdateEntry(entryData, effectivePass);
-            
+            const savedEntry = await db.createOrUpdateEntry(entryData);
+
             setContent(savedEntry.content);
             setEditDate(new Date(savedEntry.updated_at || savedEntry.created_at));
             setCurrentEntryId(savedEntry.id);
             setSlug(savedEntry.slug || currentSlug);
-            
+
             setIsEditing(false);
 
         } catch (err) {
@@ -189,19 +194,19 @@ const Paste = ({ mode }) => {
 
     const formatDate = (date) => {
         if (!date) return '...';
-        return date.toLocaleString('en-GB', { 
-            day: '2-digit', 
-            month: 'short', 
-            year: 'numeric', 
-            hour: '2-digit', 
+        return date.toLocaleString('en-GB', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
             minute: '2-digit',
-            hour12: false 
+            hour12: false
         }) + ' UTC';
     };
 
     const isUserAuthenticated = () => {
-        const cookiePass = getCookie('passcode')
-        return !!(passcode || cookiePass)
+        const cookieToken = getCookie('session_token')
+        return !!(passcode || cookieToken)
     };
 
     if (isLoading) {
@@ -219,17 +224,17 @@ const Paste = ({ mode }) => {
             <div className="max-w-5xl w-full space-y-6">
                 {/* Top utility bar for quick actions (guest gets a Copy Link button) */}
                 {mode !== 'admin' && (
-                  <div className="flex items-center justify-end">
-                    <CopyShareLinkButton slug={slug || 'guest-paste'} />
-                  </div>
+                    <div className="flex items-center justify-end">
+                        <CopyShareLinkButton slug={slug || 'guest-paste'} />
+                    </div>
                 )}
 
                 <div className="text-center">
                     <h1 className="heading-xl">
-                        {mode === 'admin' ? 'Admin Paste' : 'Guest Paste'}
+                        {mode === 'admin' ? 'Personal Clipboard' : 'Quick Drop'}
                     </h1>
                     <p className="mt-2 muted">
-                        {mode === 'admin' ? 'Your permanent, editable paste.' : 'A shared paste anyone can edit.'}
+                        {mode === 'admin' ? 'Your synced clipboard. Access this from any device.' : 'A temporary drop space for fast cross-device sharing.'}
                     </p>
                 </div>
 
@@ -296,13 +301,12 @@ const Paste = ({ mode }) => {
                     <button
                         onClick={() => currentEntryId && setIsFileManagerOpen(true)}
                         disabled={!currentEntryId}
-                        className={`fixed bottom-6 right-6 p-4 rounded-full border z-40 transition-all duration-150 ${
-                            currentEntryId 
+                        className={`fixed bottom-6 right-6 p-4 rounded-full border z-40 transition-all duration-150 ${currentEntryId
                                 ? 'bg-neutral-950 border-neutral-800 text-gray-200 hover:bg-neutral-900 hover:border-neutral-700'
                                 : 'bg-neutral-900 border-neutral-900 text-neutral-600 cursor-not-allowed opacity-75'
-                        }`}
-                        title={currentEntryId 
-                            ? (mode === 'guest' 
+                            }`}
+                        title={currentEntryId
+                            ? (mode === 'guest'
                                 ? 'File Manager (Guest uploads have a 1GB total limit and are separate from admin uploads)'
                                 : 'File Manager')
                             : 'Save your paste first to enable file management'}

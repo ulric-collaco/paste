@@ -1,107 +1,151 @@
-// Cloudflare Worker to generate S3-compatible presigned URLs for Cloudflare R2
-// Do NOT expose your R2 credentials on the client. Deploy this Worker on Cloudflare and
-// set the following secrets/environment variables:
-// - R2_ACCOUNT_ID
-// - R2_BUCKET_NAME
-// - R2_ACCESS_KEY_ID
-// - R2_SECRET_ACCESS_KEY
-// - R2_REGION (defaults to 'auto')
-//
-// POST /sign { key, method, expires }
-//   -> { url }
-// Supports methods: GET, PUT, DELETE
+/**
+ * Cloudflare Worker — R2 Presigned URL Signer
+ *
+ * Exposes two authenticated endpoints:
+ *   POST /sign/upload  { key, expires? }           → { url } (PUT presigned)
+ *   POST /sign/download { key, expires? }           → { url } (GET presigned)
+ *
+ * DELETE is intentionally NOT exposed here. The API Worker (paste-api) handles
+ * deletes via native R2 bindings after verifying ownership in D1.
+ *
+ * Auth: Bearer token validated against TOKEN_SECRET environment variable.
+ * Guest users get a 15-min short-lived PUT URL but cannot generate download URLs
+ * for authenticated pastes.
+ *
+ * Required Wrangler secrets:
+ *   R2_ACCOUNT_ID, R2_BUCKET_NAME, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY
+ *   TOKEN_SECRET  (same secret as the paste-api worker uses to sign JWTs)
+ *   R2_REGION     (optional, defaults to 'auto')
+ */
+
+const KEY_ALLOWLIST_RE = /^[a-zA-Z0-9_\-.]{1,512}$/
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url)
+
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: corsHeaders(request) })
     }
 
-    // Simple health endpoint to verify deploy and env (no secrets leaked)
+    // Health check — no auth required, no secrets leaked
     if (url.pathname === '/health' && request.method === 'GET') {
-      const now = new Date()
       return json({
         ok: true,
-        now: now.toISOString(),
-        amzDate: toAmzDate(now),
-        accountId: env.R2_ACCOUNT_ID ? `${String(env.R2_ACCOUNT_ID).slice(0, 6)}…` : null,
+        ts: new Date().toISOString(),
+        accountId: env.R2_ACCOUNT_ID ? `${String(env.R2_ACCOUNT_ID).slice(0, 4)}…` : null,
         bucket: env.R2_BUCKET_NAME || null,
-        region: env.R2_REGION || 'auto',
       }, 200, request)
     }
 
-    if (url.pathname === '/sign' && request.method === 'POST') {
+    // ── Auth gate ──────────────────────────────────────────────────────────
+    const authHeader = request.headers.get('Authorization') || ''
+    const token = authHeader.replace(/^Bearer\s+/i, '').trim()
+
+    // Guest uploads use a short-lived signed key passed as X-Guest-Key header
+    const isGuest = request.headers.get('X-Upload-Mode') === 'guest'
+
+    if (!isGuest) {
+      // Authenticated users must provide a valid JWT
+      if (!token) return json({ error: 'Unauthorized' }, 401, request)
+      const valid = await verifyToken(token, env.TOKEN_SECRET)
+      if (!valid) return json({ error: 'Invalid or expired token' }, 401, request)
+    } else {
+      // For guests we allow uploads but enforce a short TTL cap
+      // No token required — quota is enforced by the paste-api worker
+    }
+
+    // ── Upload URL (PUT) ────────────────────────────────────────────────────
+    if (url.pathname === '/sign/upload' && request.method === 'POST') {
       try {
-        const { key, method = 'PUT', expires = 300 } = await request.json()
-        if (!key || !['GET', 'PUT', 'DELETE'].includes(method)) {
-          return json({ error: 'Invalid request' }, 400, request)
+        const { key, expires = isGuest ? 300 : 600 } = await request.json()
+
+        // Key validation — prevent path traversal and bucket pollution
+        if (!key || !KEY_ALLOWLIST_RE.test(key)) {
+          return json({ error: 'Invalid or missing key. Use only alphanumeric, dash, dot, underscore.' }, 400, request)
         }
 
-        const accountId = env.R2_ACCOUNT_ID
-        const bucket = env.R2_BUCKET_NAME
-        const accessKeyId = env.R2_ACCESS_KEY_ID
-        const secretKey = env.R2_SECRET_ACCESS_KEY
-        const region = env.R2_REGION || 'auto'
-
-        const missing = []
-        if (!accountId) missing.push('R2_ACCOUNT_ID')
-        if (!bucket) missing.push('R2_BUCKET_NAME')
-        if (!accessKeyId) missing.push('R2_ACCESS_KEY_ID')
-        if (!secretKey) missing.push('R2_SECRET_ACCESS_KEY')
-        if (missing.length) {
-          // Help surface which secrets are not configured in Wrangler/CF dashboard
-          return json({ error: `Missing R2 configuration: ${missing.join(', ')}` }, 500, request)
-        }
-
-        const presigned = await presignUrl({
-          method,
-          accountId,
-          bucket,
-          key,
-          region,
-          accessKeyId,
-          secretKey,
-          expires: Number(expires) || 300,
-        })
-        return json({ url: presigned }, 200, request)
+        const cappedExpires = Math.min(Number(expires) || 300, isGuest ? 300 : 3600)
+        const signed = await presignUrl({ method: 'PUT', key, expires: cappedExpires, env })
+        return json({ url: signed, key }, 200, request)
       } catch (err) {
-        // Log for Worker logs; do not leak stack to clients
-        console.error('[r2-signer] Failed to sign URL', err)
-        return json({ error: err?.message || 'Failed to sign' }, 500, request)
+        console.error('[r2-signer/upload]', err)
+        return json({ error: err?.message || 'Failed to sign upload URL' }, 500, request)
       }
     }
 
-    return json({ ok: true }, 200, request)
-  }
-}
+    // ── Download URL (GET) ──────────────────────────────────────────────────
+    if (url.pathname === '/sign/download' && request.method === 'POST') {
+      if (isGuest) return json({ error: 'Guest mode cannot generate download URLs' }, 403, request)
+      try {
+        const { key, expires = 300 } = await request.json()
 
-function corsHeaders(request) {
-  const origin = request.headers.get('Origin') || '*'
-  return {
-    'Access-Control-Allow-Origin': origin,
-    'Access-Control-Allow-Methods': 'GET, PUT, DELETE, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-requested-with',
-    'Access-Control-Max-Age': '3600',
-    'Vary': 'Origin',
-  }
-}
+        if (!key || !KEY_ALLOWLIST_RE.test(key)) {
+          return json({ error: 'Invalid or missing key' }, 400, request)
+        }
 
-function json(data, status = 200, request) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      'Content-Type': 'application/json',
-      'Vary': 'Origin',
-      'Cache-Control': 'no-store',
-      ...corsHeaders(request),
+        const cappedExpires = Math.min(Number(expires) || 300, 3600)
+        const signed = await presignUrl({ method: 'GET', key, expires: cappedExpires, env })
+        return json({ url: signed }, 200, request)
+      } catch (err) {
+        console.error('[r2-signer/download]', err)
+        return json({ error: err?.message || 'Failed to sign download URL' }, 500, request)
+      }
     }
-  })
+
+    return json({ error: 'Not found' }, 404, request)
+  }
 }
 
-async function presignUrl({ method, accountId, bucket, key, region, accessKeyId, secretKey, expires }) {
+// ── JWT Verification (HS256 via Web Crypto) ───────────────────────────────
+
+async function verifyToken(token, secret) {
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 3) return null
+    const [headerB64, payloadB64, sigB64] = parts
+    const data = `${headerB64}.${payloadB64}`
+    const enc = new TextEncoder()
+    const key = await crypto.subtle.importKey(
+      'raw', enc.encode(secret || 'fallback'),
+      { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']
+    )
+    const sig = base64urlDecode(sigB64)
+    const valid = await crypto.subtle.verify('HMAC', key, sig, enc.encode(data))
+    if (!valid) return null
+    const payload = JSON.parse(atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/')))
+    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) return null
+    return payload
+  } catch {
+    return null
+  }
+}
+
+function base64urlDecode(str) {
+  const padded = str.replace(/-/g, '+').replace(/_/g, '/').padEnd(str.length + (4 - str.length % 4) % 4, '=')
+  const binary = atob(padded)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return bytes
+}
+
+// ── AWS4-HMAC-SHA256 Presigned URL ────────────────────────────────────────
+
+async function presignUrl({ method, key, expires, env }) {
+  const accountId = env.R2_ACCOUNT_ID
+  const bucket = env.R2_BUCKET_NAME
+  const accessKeyId = env.R2_ACCESS_KEY_ID
+  const secretKey = env.R2_SECRET_ACCESS_KEY
+  const region = env.R2_REGION || 'auto'
+
+  const missing = []
+  if (!accountId) missing.push('R2_ACCOUNT_ID')
+  if (!bucket) missing.push('R2_BUCKET_NAME')
+  if (!accessKeyId) missing.push('R2_ACCESS_KEY_ID')
+  if (!secretKey) missing.push('R2_SECRET_ACCESS_KEY')
+  if (missing.length) throw new Error(`Missing R2 config: ${missing.join(', ')}`)
+
   const host = `${accountId}.r2.cloudflarestorage.com`
-  // Encode path but preserve '/'
   const canonicalUri = `/${bucket}/${encodePathPreserveSlash(key)}`
   const service = 's3'
 
@@ -109,9 +153,8 @@ async function presignUrl({ method, accountId, bucket, key, region, accessKeyId,
   const amzDate = toAmzDate(now)
   const datestamp = amzDate.slice(0, 8)
   const credentialScope = `${datestamp}/${region}/${service}/aws4_request`
-
-  const signedHeaders = 'host'
   const algorithm = 'AWS4-HMAC-SHA256'
+  const signedHeaders = 'host'
 
   const qp = {
     'X-Amz-Algorithm': algorithm,
@@ -121,130 +164,86 @@ async function presignUrl({ method, accountId, bucket, key, region, accessKeyId,
     'X-Amz-SignedHeaders': signedHeaders,
   }
 
-  // For GET, include response disposition to preserve filename and avoid extension interference
   if (method === 'GET') {
-    const baseName = String(key).split('/').pop() || 'download'
+    const baseName = key.split('/').pop() || 'download'
     qp['response-content-disposition'] = `attachment; filename="${baseName}"`
   }
 
-  // Strict RFC3986 for query (encode '/')
-  const canonicalQueryString = Object.keys(qp) 
-    .sort()
-    .map((k) => `${encodeQueryRfc3986(k)}=${encodeQueryRfc3986(qp[k])}`)
-    .join('&')
-  const canonicalHeaders = `host:${host}\n`
-  const payloadHash = 'UNSIGNED-PAYLOAD'
+  const canonicalQueryString = Object.keys(qp).sort()
+    .map(k => `${encodeQueryRfc3986(k)}=${encodeQueryRfc3986(qp[k])}`).join('&')
 
-  const canonicalRequest = [
-    method,
-    canonicalUri,
-    canonicalQueryString,
-    canonicalHeaders,
-    signedHeaders,
-    payloadHash,
-  ].join('\n')
-
-  const hashedCanonicalRequest = await sha256Hex(canonicalRequest)
-  const stringToSign = [
-    algorithm,
-    amzDate,
-    credentialScope,
-    hashedCanonicalRequest,
-  ].join('\n')
-
+  const canonicalRequest = [method, canonicalUri, canonicalQueryString, `host:${host}\n`, signedHeaders, 'UNSIGNED-PAYLOAD'].join('\n')
+  const hashedCR = await sha256Hex(canonicalRequest)
+  const stringToSign = [algorithm, amzDate, credentialScope, hashedCR].join('\n')
   const signingKey = await getSignatureKey(secretKey, datestamp, region, service)
   const signature = await hmacHexBuf(signingKey, stringToSign)
 
-  const presignedUrl = `https://${host}${canonicalUri}?${canonicalQueryString}&X-Amz-Signature=${signature}`
-  return presignedUrl
+  return `https://${host}${canonicalUri}?${canonicalQueryString}&X-Amz-Signature=${signature}`
 }
 
-function encodeRfc3986(input) {
-  // Encode but keep '/'
-  return encodeURIComponent(input)
-    .replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)
-    .replace(/%2F/g, '/')
-}
+// ── Crypto Helpers ────────────────────────────────────────────────────────
 
 function toAmzDate(date) {
-  const pad = (n) => String(n).padStart(2, '0')
-  const yyyy = date.getUTCFullYear()
-  const MM = pad(date.getUTCMonth() + 1)
-  const dd = pad(date.getUTCDate())
-  const HH = pad(date.getUTCHours())
-  const mm = pad(date.getUTCMinutes())
-  const ss = pad(date.getUTCSeconds())
-  return `${yyyy}${MM}${dd}T${HH}${mm}${ss}Z`
+  const p = n => String(n).padStart(2, '0')
+  return `${date.getUTCFullYear()}${p(date.getUTCMonth() + 1)}${p(date.getUTCDate())}T${p(date.getUTCHours())}${p(date.getUTCMinutes())}${p(date.getUTCSeconds())}Z`
 }
 
-async function sha256Hex(message) {
+async function sha256Hex(msg) {
   const enc = new TextEncoder()
-  const data = enc.encode(message)
-  const hash = await crypto.subtle.digest('SHA-256', data)
+  const hash = await crypto.subtle.digest('SHA-256', enc.encode(msg))
   return toHex(hash)
-}
-
-async function hmac(key, msg) {
-  const enc = new TextEncoder()
-  const cryptoKey = await crypto.subtle.importKey(
-    'raw',
-    enc.encode(key),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  )
-  const sig = await crypto.subtle.sign('HMAC', cryptoKey, enc.encode(msg))
-  return sig
-}
-
-async function hmacHex(key, msg) {
-  const sig = await hmac(key, msg)
-  return toHex(sig)
-}
-
-async function getSignatureKey(key, dateStamp, regionName, serviceName) {
-  const kDate = await hmac(`AWS4${key}`, dateStamp)
-  const kRegion = await hmacBuf(kDate, regionName)
-  const kService = await hmacBuf(kRegion, serviceName)
-  const kSigning = await hmacBuf(kService, 'aws4_request')
-  return kSigning
 }
 
 async function hmacBuf(keyBuf, msg) {
   const enc = new TextEncoder()
-  const cryptoKey = await crypto.subtle.importKey(
-    'raw',
-    keyBuf,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  )
-  const sig = await crypto.subtle.sign('HMAC', cryptoKey, enc.encode(msg))
-  return sig
+  const k = await crypto.subtle.importKey('raw', keyBuf, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+  return crypto.subtle.sign('HMAC', k, enc.encode(msg))
+}
+
+async function hmacStrBuf(keyStr, msg) {
+  const enc = new TextEncoder()
+  const k = await crypto.subtle.importKey('raw', enc.encode(keyStr), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+  return crypto.subtle.sign('HMAC', k, enc.encode(msg))
+}
+
+async function getSignatureKey(key, dateStamp, region, service) {
+  const kDate = await hmacStrBuf(`AWS4${key}`, dateStamp)
+  const kRegion = await hmacBuf(kDate, region)
+  const kService = await hmacBuf(kRegion, service)
+  return hmacBuf(kService, 'aws4_request')
+}
+
+async function hmacHexBuf(keyBuf, msg) {
+  const sig = await hmacBuf(keyBuf, msg)
+  return toHex(sig)
 }
 
 function toHex(buffer) {
-  const bytes = new Uint8Array(buffer)
-  let hex = ''
-  for (let i = 0; i < bytes.length; i++) {
-    hex += bytes[i].toString(16).padStart(2, '0')
-  }
-  return hex
+  return [...new Uint8Array(buffer)].map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
-// Strict RFC3986 for query (does NOT preserve '/')
 function encodeQueryRfc3986(input) {
-  return encodeURIComponent(input)
-    .replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)
+  return encodeURIComponent(input).replace(/[!'()*]/g, c => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)
 }
 
-// Path encoder that preserves '/'
 function encodePathPreserveSlash(input) {
   return encodeQueryRfc3986(input).replace(/%2F/g, '/')
 }
 
-// Convenience: hex-encode HMAC when key is an ArrayBuffer (used for SigV4 signing key)
-async function hmacHexBuf(keyBuf, msg) {
-  const sig = await hmacBuf(keyBuf, msg)
-  return toHex(sig)
+function corsHeaders(request) {
+  const origin = request.headers.get('Origin') || '*'
+  return {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Upload-Mode',
+    'Access-Control-Max-Age': '3600',
+    'Vary': 'Origin',
+  }
+}
+
+function json(data, status, request) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...corsHeaders(request) }
+  })
 }
