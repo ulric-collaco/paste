@@ -50,6 +50,18 @@ function payloadPreview(payload) {
   }
 }
 
+function signerResponseError(kind, payload) {
+  const endpointHint = `Check VITE_R2_SIGNER_URL (current: ${SIGNER_URL})`;
+  if (payload?.ok === true && !getUrlFromPayload(payload)) {
+    return new Error(`Signer ${kind} endpoint returned ok=true but no url. ${endpointHint}`);
+  }
+  const preview = payloadPreview(payload);
+  if (preview) {
+    return new Error(`Signer returned invalid ${kind} response: ${preview}. ${endpointHint}`);
+  }
+  return new Error(`Signer returned no URL. ${endpointHint}`);
+}
+
 /**
  * Generate a unique, collision-resistant R2 object key.
  * Format: {timestamp}_{8-char-uuid}_{sanitized-filename}
@@ -93,9 +105,7 @@ export async function getUploadUrl(key, isGuest = false, expires = isGuest ? 300
   const signedUrl = getUrlFromPayload(payload);
   if (signedUrl) return signedUrl;
   if (payload?.error) throw new Error(payload.error);
-
-  const preview = payloadPreview(payload);
-  throw new Error(preview ? `Signer returned invalid upload response: ${preview}` : 'Signer returned no URL');
+  throw signerResponseError('upload', payload);
 }
 
 /**
@@ -127,9 +137,7 @@ export async function getDownloadUrl(key, expires = 300) {
   const signedUrl = getUrlFromPayload(payload);
   if (signedUrl) return signedUrl;
   if (payload?.error) throw new Error(payload.error);
-
-  const preview = payloadPreview(payload);
-  throw new Error(preview ? `Signer returned invalid download response: ${preview}` : 'Signer returned no URL');
+  throw signerResponseError('download', payload);
 }
 
 /**
