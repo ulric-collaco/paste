@@ -13,10 +13,41 @@
 
 import { getToken } from './api.js';
 
-const SIGNER_URL = (import.meta.env.VITE_R2_SIGNER_URL || '').replace(/\/$/, '');
+const RAW_SIGNER_URL = import.meta.env.VITE_R2_SIGNER_URL || '';
+const SIGNER_URL = RAW_SIGNER_URL
+  .replace(/\/$/, '')
+  .replace(/\/sign\/(upload|download)$/, '');
 
 if (!SIGNER_URL && import.meta.env.DEV) {
   console.warn('[r2] VITE_R2_SIGNER_URL is not set. File uploads will not work.');
+}
+
+if (/\/sign\/(upload|download)\/?$/.test(RAW_SIGNER_URL) && import.meta.env.DEV) {
+  console.warn('[r2] VITE_R2_SIGNER_URL should be the signer base URL, not /sign/upload or /sign/download.');
+}
+
+async function readSignerPayload(resp) {
+  const raw = await resp.text();
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return { __raw: raw };
+  }
+}
+
+function getUrlFromPayload(payload) {
+  return payload?.url || payload?.signedUrl || payload?.presignedUrl || payload?.data?.url || null;
+}
+
+function payloadPreview(payload) {
+  if (!payload) return '';
+  if (typeof payload.__raw === 'string') return payload.__raw.slice(0, 180);
+  try {
+    return JSON.stringify(payload).slice(0, 180);
+  } catch {
+    return '';
+  }
 }
 
 /**
@@ -53,14 +84,18 @@ export async function getUploadUrl(key, isGuest = false, expires = isGuest ? 300
     body: JSON.stringify({ key, expires }),
   });
 
+  const payload = await readSignerPayload(resp);
+
   if (!resp.ok) {
-    const err = await resp.json().catch(() => ({}));
-    throw new Error(err?.error || `Failed to get upload URL (${resp.status})`);
+    throw new Error(payload?.error || payload?.message || `Failed to get upload URL (${resp.status})`);
   }
 
-  const data = await resp.json();
-  if (!data.url) throw new Error('Signer returned no URL');
-  return data.url;
+  const signedUrl = getUrlFromPayload(payload);
+  if (signedUrl) return signedUrl;
+  if (payload?.error) throw new Error(payload.error);
+
+  const preview = payloadPreview(payload);
+  throw new Error(preview ? `Signer returned invalid upload response: ${preview}` : 'Signer returned no URL');
 }
 
 /**
@@ -83,14 +118,18 @@ export async function getDownloadUrl(key, expires = 300) {
     body: JSON.stringify({ key, expires }),
   });
 
+  const payload = await readSignerPayload(resp);
+
   if (!resp.ok) {
-    const err = await resp.json().catch(() => ({}));
-    throw new Error(err?.error || `Failed to get download URL (${resp.status})`);
+    throw new Error(payload?.error || payload?.message || `Failed to get download URL (${resp.status})`);
   }
 
-  const data = await resp.json();
-  if (!data.url) throw new Error('Signer returned no URL');
-  return data.url;
+  const signedUrl = getUrlFromPayload(payload);
+  if (signedUrl) return signedUrl;
+  if (payload?.error) throw new Error(payload.error);
+
+  const preview = payloadPreview(payload);
+  throw new Error(preview ? `Signer returned invalid download response: ${preview}` : 'Signer returned no URL');
 }
 
 /**

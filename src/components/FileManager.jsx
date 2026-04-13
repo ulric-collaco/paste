@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React from 'react';
 import { X, AlertCircle } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import R2UploadPanel from './R2UploadPanel';
@@ -10,38 +10,12 @@ import R2UploadPanel from './R2UploadPanel';
  */
 const FileManager = ({ isOpen, onClose, entryId, files, onFilesChange }) => {
   const { mode } = useApp();
-  const [isDragOver, setIsDragOver] = useState(false);
-  const [error, setError] = useState(null);
-
-  const handleDragOver = useCallback((e) => {
-    e.preventDefault();
-    setIsDragOver(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e) => {
-    e.preventDefault();
-    setIsDragOver(false);
-  }, []);
-
-  // Forward drops into R2UploadPanel by triggering its hidden input
-  // R2UploadPanel owns its own drag-handling; we just visually indicate drag-over here
-  const handleDrop = useCallback((e) => {
-    e.preventDefault();
-    setIsDragOver(false);
-    // R2UploadPanel has its own state — we don't need to forward files here
-    // The panel's own drop zone will handle it
-  }, []);
 
   if (!isOpen) return null;
 
   return (
-    <div
-      className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-    >
-      <div className={`surface max-w-4xl w-full max-h-[90vh] overflow-hidden transition-all ${isDragOver ? 'ring-2 ring-blue-500' : ''}`}>
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="surface max-w-4xl w-full max-h-[90vh] overflow-hidden transition-all">
         {/* Modal Header */}
         <div className="flex items-center justify-between p-6 border-b border-neutral-900">
           <h2 className="text-xl font-semibold text-gray-100">File Manager</h2>

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { Upload, Download, Trash2 } from 'lucide-react'
 import { db, utils } from '../lib/api'
-import { generateKey, getUploadUrl, getDownloadUrl, uploadFileToR2, explainR2Error } from '../lib/r2'
+import { generateKey, getUploadUrl, getDownloadUrl, uploadFileToR2 } from '../lib/r2'
 
 /**
  * R2UploadPanel — handles the full 3-step upload flow:
@@ -20,6 +20,7 @@ export default function R2UploadPanel({ entryId, isGuestMode, onFilesChange, exi
   const [uploadProgress, setUploadProgress] = useState({}) // key → 0-100
   const [error, setError] = useState(null)
   const [usage, setUsage] = useState({ guestBytes: 0, userBytes: 0 })
+  const [isDropActive, setIsDropActive] = useState(false)
   const fileInputRef = useRef(null)
 
   const GUEST_LIMIT = 1 * 1024 * 1024 * 1024  // 1 GB
@@ -47,6 +48,25 @@ export default function R2UploadPanel({ entryId, isGuestMode, onFilesChange, exi
     const selected = Array.from(e.target.files || [])
     if (selected.length) await handleFiles(selected)
     e.target.value = ''
+  }
+
+  const handleDropZoneDragOver = (e) => {
+    e.preventDefault()
+    if (isUploading) return
+    setIsDropActive(true)
+  }
+
+  const handleDropZoneDragLeave = (e) => {
+    e.preventDefault()
+    setIsDropActive(false)
+  }
+
+  const handleDropZoneDrop = async (e) => {
+    e.preventDefault()
+    setIsDropActive(false)
+    if (isUploading) return
+    const dropped = Array.from(e.dataTransfer?.files || [])
+    if (dropped.length) await handleFiles(dropped)
   }
 
   const handleFiles = async (selectedFiles) => {
@@ -174,7 +194,12 @@ export default function R2UploadPanel({ entryId, isGuestMode, onFilesChange, exi
       )}
 
       {/* Drop zone */}
-      <div className="border border-dashed rounded-lg p-6 text-center mb-6">
+      <div
+        className={`border border-dashed rounded-lg p-6 text-center mb-6 transition-colors ${isDropActive ? 'border-blue-500 bg-blue-950/20' : 'border-neutral-700'}`}
+        onDragOver={handleDropZoneDragOver}
+        onDragLeave={handleDropZoneDragLeave}
+        onDrop={handleDropZoneDrop}
+      >
         <Upload size={36} className="mx-auto text-neutral-400 mb-2" />
         <div className="text-neutral-300 mb-2">Drag & drop or select files</div>
         <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleSelect} disabled={isUploading} />
