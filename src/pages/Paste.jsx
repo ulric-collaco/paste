@@ -109,11 +109,24 @@ const Paste = ({ mode }) => {
   const [error, setError] = useState('');
   const [hasAuthError, setHasAuthError] = useState(false);
   const [isFileManagerOpen, setIsFileManagerOpen] = useState(false);
+  const [sharedFiles, setSharedFiles] = useState([]);
 
   const { mode: appMode, resetMode } = useApp();
   const navigate = useNavigate();
   const isGuest = mode === 'guest';
   const isAuthenticated = appMode === 'passcode';
+
+  // Load ALL files for the user (cross-tab) into one shared list
+  const loadSharedFiles = useCallback(async () => {
+    try {
+      const files = isGuest
+        ? await db.getGuestFiles()
+        : await db.getMyFiles();
+      setSharedFiles(Array.isArray(files) ? files : []);
+    } catch (e) {
+      console.warn('[Paste] Failed to load shared files', e);
+    }
+  }, [isGuest]);
 
   const cur = tabStates[activeTab];
 
@@ -191,6 +204,9 @@ const Paste = ({ mode }) => {
 
   // Load active tab on mount + whenever it changes (lazy)
   useEffect(() => { loadTab(activeTab); }, [activeTab]);
+
+  // Load shared files once when component is ready
+  useEffect(() => { loadSharedFiles(); }, [loadSharedFiles]);
 
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
@@ -348,11 +364,10 @@ const Paste = ({ mode }) => {
 
         {(isGuest || isAuthenticated) && (
           <button
-            onClick={() => cur.entryId && setIsFileManagerOpen(true)}
-            disabled={!cur.entryId}
-            className={`paste-fab ${!cur.entryId ? 'paste-fab--disabled' : ''}`}
-            aria-label={cur.entryId ? 'File manager' : 'Save first to manage files'}
-            title={cur.entryId ? 'File Manager' : 'Save your paste first'}
+            onClick={() => setIsFileManagerOpen(true)}
+            className="paste-fab"
+            aria-label="File manager"
+            title="File Manager"
           >
             <Files size={22} aria-hidden="true" />
           </button>
@@ -363,8 +378,8 @@ const Paste = ({ mode }) => {
         isOpen={isFileManagerOpen}
         onClose={() => setIsFileManagerOpen(false)}
         entryId={cur.entryId}
-        files={cur.entryFiles}
-        onFilesChange={files => setTab(activeTab, t => ({ ...t, entryFiles: files }))}
+        files={sharedFiles}
+        onFilesChange={() => loadSharedFiles()}
       />
     </div>
   );

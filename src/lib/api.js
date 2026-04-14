@@ -64,6 +64,16 @@ export const db = {
         return await fetchApi(`/entries/me?tab=${tabId}`);
     },
 
+    // All files for the authenticated user (all tabs combined)
+    async getMyFiles() {
+        return await fetchApi('/files/me');
+    },
+
+    // All files for guest users
+    async getGuestFiles() {
+        return await fetchApi('/files/guest');
+    },
+
     // Delete entry
     async deleteEntry(id) {
         await fetchApi(`/entries/${id}`, { method: 'DELETE' });

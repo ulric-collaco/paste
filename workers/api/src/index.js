@@ -327,6 +327,32 @@ app.delete('/api/v1/files/:id', authMiddleware(), async (c) => {
   return c.json({ success: true, id, deletedFile: file, meta: { requestId: c.get('requestId') } });
 });
 
+// ── FILES — list all files for the current user ───────────────────────────
+
+// GET all files owned by the authenticated passcode (all tabs combined)
+app.get('/api/v1/files/me', authMiddleware(), async (c) => {
+  const passcode = c.get('passcode');
+  const { results } = await c.env.DB.prepare(`
+    SELECT f.*
+    FROM files f
+    JOIN entries e ON f.entry_id = e.id
+    WHERE e.passcode = ?
+    ORDER BY f.created_at DESC
+  `).bind(passcode).all();
+  return c.json({ data: results || [], meta: { requestId: c.get('requestId') } });
+});
+
+// GET all guest files (public — no auth needed, but scoped to is_guest=1)
+app.get('/api/v1/files/guest', async (c) => {
+  const { results } = await c.env.DB.prepare(`
+    SELECT f.*
+    FROM files f
+    WHERE f.is_guest = 1
+    ORDER BY f.created_at DESC
+  `).all();
+  return c.json({ data: results || [], meta: { requestId: c.get('requestId') } });
+});
+
 // ── STATS & MISC ───────────────────────────────────────────────────────────
 
 app.get('/api/v1/stats', async (c) => {

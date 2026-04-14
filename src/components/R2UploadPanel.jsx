@@ -23,6 +23,9 @@ export default function R2UploadPanel({ entryId, isGuestMode, onFilesChange, exi
   const [isDropActive, setIsDropActive] = useState(false)
   const fileInputRef = useRef(null)
 
+  // Sync local list whenever the parent refreshes the prop
+  useEffect(() => { setFiles(existingFiles) }, [existingFiles])
+
   const GUEST_LIMIT = 1 * 1024 * 1024 * 1024  // 1 GB
   const USER_LIMIT  = 8 * 1024 * 1024 * 1024  // 8 GB
 
@@ -106,9 +109,9 @@ export default function R2UploadPanel({ entryId, isGuestMode, onFilesChange, exi
           entry_id: entryId,
         })
 
-        setFiles(prev => [meta, ...prev])
-        onFilesChange && onFilesChange(prev => [meta, ...(prev || [])])
         await loadUsage()
+        // Notify parent to refresh the shared file list
+        onFilesChange && onFilesChange()
       }
     } catch (err) {
       console.error('[R2UploadPanel] upload error', err)
@@ -124,9 +127,9 @@ export default function R2UploadPanel({ entryId, isGuestMode, onFilesChange, exi
     try {
       // Server deletes from R2 + D1 and verifies ownership
       await db.deleteFile(fileMeta.id)
-      setFiles(prev => prev.filter(f => f.id !== fileMeta.id))
-      onFilesChange && onFilesChange(prev => (prev || []).filter(f => f.id !== fileMeta.id))
       await loadUsage()
+      // Notify parent to refresh the shared file list
+      onFilesChange && onFilesChange()
     } catch (err) {
       console.error('[R2UploadPanel] delete error', err)
       setError(err.message || 'Delete failed.')
