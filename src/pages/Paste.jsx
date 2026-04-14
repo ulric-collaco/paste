@@ -218,24 +218,6 @@ const Paste = ({ mode }) => {
               <ChevronLeft size={16} />
               <span className="paste-back-label">Back</span>
             </button>
-            <div className="paste-title-block">
-              <h1 className="paste-title">{isGuest ? 'Quick Drop' : 'Clipboard'}</h1>
-              <p className="paste-subtitle">
-                {isGuest ? 'Temporary space — shared across devices' : 'Your synced clipboard'}
-              </p>
-            </div>
-          </div>
-
-          <div className="paste-header__right">
-            {entrySlug && (
-              <a
-                href={`/v/${entrySlug}`}
-                target="_blank" rel="noopener noreferrer"
-                className="btn"
-              >
-                Share
-              </a>
-            )}
           </div>
         </div>
       </header>
