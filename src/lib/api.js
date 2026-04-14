@@ -1,11 +1,8 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787'; // Default for local dev
+export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787'; // Default for local dev
 
 export const getToken = () => {
-    if (typeof document === 'undefined') return null;
-    return document.cookie.split('; ').reduce((r, v) => {
-        const parts = v.split('=');
-        return parts[0] === 'session_token' ? decodeURIComponent(parts[1]) : r;
-    }, null);
+    if (typeof localStorage === 'undefined') return null;
+    return localStorage.getItem('session_token');
 }
 
 // Helper to handle API responses
@@ -132,12 +129,23 @@ export const db = {
                 method: 'POST',
                 body: JSON.stringify({ passcode })
             });
-            // res = { valid: true, token: 'xxx' } (due to fetchApi unwrap not applying here maybe? Actually, verifyPasscode might return { valid, token } since it doesn't have a 'data' envelope)
-            // Wait, my API returns c.json({ valid: true, token }) without a data wrapper.
-            // fetchApi will return it directly since json.data is undefined
-            return res;
+            // API returns { valid: true, token } — no data wrapper
+            if (res && res.valid && res.token) {
+                localStorage.setItem('session_token', res.token);
+                return res;
+            }
+            return false;
         } catch (e) {
             return false;
+        }
+    },
+
+    async logout() {
+        localStorage.removeItem('session_token');
+        try {
+            await fetchApi('/auth/logout', { method: 'POST' });
+        } catch {
+            // Ignore network errors — token already cleared locally.
         }
     },
 };

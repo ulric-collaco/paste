@@ -62,7 +62,7 @@ const Paste = ({ mode }) => {
     const [entryFiles, setEntryFiles] = useState([]);
     const [currentEntryId, setCurrentEntryId] = useState(null);
     const [hasAuthError, setHasAuthError] = useState(false);
-    const { passcode, resetMode, getCookie } = useApp();
+    const { mode: appMode, resetMode } = useApp();
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -70,9 +70,8 @@ const Paste = ({ mode }) => {
             setIsLoading(true);
             try {
                 if (mode === 'admin') {
-                    // Only allow access to /admin when a token cookie/context is present.
-                    const cookieToken = getCookie('session_token')
-                    if (!passcode && !cookieToken) {
+                    // Guard: if context says not logged in, redirect home
+                    if (appMode !== 'passcode') {
                         navigate('/')
                         return
                     }
@@ -136,7 +135,7 @@ const Paste = ({ mode }) => {
                     setHasAuthError(true);
                     document.cookie = 'session_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
                     document.cookie = 'session_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/admin';
-                    resetMode();
+                    await resetMode();
                     window.location.href = '/';
                     return;
                 }
@@ -147,7 +146,7 @@ const Paste = ({ mode }) => {
             }
         };
         loadPaste();
-    }, [mode, passcode, navigate]);
+    }, [mode, appMode, navigate]);
 
     const handleEdit = () => {
         setEditedContent(content);
@@ -204,10 +203,7 @@ const Paste = ({ mode }) => {
         }) + ' UTC';
     };
 
-    const isUserAuthenticated = () => {
-        const cookieToken = getCookie('session_token')
-        return !!(passcode || cookieToken)
-    };
+    const isUserAuthenticated = () => appMode === 'passcode';
 
     if (isLoading) {
         return (
@@ -286,7 +282,7 @@ const Paste = ({ mode }) => {
                                 Edit
                             </button>
                         )}
-                        <button onClick={() => { resetMode(); navigate('/'); }} className="btn">
+                        <button onClick={async () => { await resetMode(); navigate('/'); }} className="btn">
                             Back to Home
                         </button>
                     </div>

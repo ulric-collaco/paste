@@ -12,7 +12,6 @@ export const useApp = () => {
 }
 
 export const AppProvider = ({ children }) => {
-  // Cookie helpers (simple, no external dep)
   const setCookie = (name, value, days = 7) => {
     if (typeof document === 'undefined') return
     const expires = new Date(Date.now() + days * 864e5).toUTCString()
@@ -32,73 +31,48 @@ export const AppProvider = ({ children }) => {
     document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`
   }
 
-  // Initialize from cookies so direct /admin access requires a valid cookie
-  const [mode, setMode] = useState(() => getCookie('mode') || null) // 'passcode' or 'guest'
-  const [passcode, setPasscode] = useState(() => getCookie('passcode') || '')
-
-
-
-  // Validate passcode against server
-  const validatePasscode = async (inputPasscode) => {
-    try {
-      const res = await db.verifyPasscode(inputPasscode)
-      if (res && res.valid && res.token) {
-        return res.token;
-      }
-      return null
-    } catch {
-      return null
-    }
-  }
+  // Initialize from cookies so direct /admin access survives page refresh
+  const [mode, setMode] = useState(() => getCookie('mode') || null)
 
   const setPasscodeMode = async (code) => {
-    const token = await validatePasscode(code)
-    if (token) {
-      setMode('passcode')
-      setPasscode('hidden') // don't store plain passcode
-      try {
+    try {
+      const res = await db.verifyPasscode(code)
+      if (res && res.valid) {
+        setMode('passcode')
         setCookie('mode', 'passcode')
-        setCookie('session_token', token) // Store token!
-      } catch (e) {
-        // ignore
+        return true
       }
-      return true
+      return false
+    } catch {
+      return false
     }
-    return false
   }
-
 
   const setGuestMode = () => {
     setMode('guest')
-    setPasscode('')
-    try {
-      setCookie('mode', 'guest')
-      deleteCookie('passcode')
-    } catch (e) {
-      // ignore
-    }
+    deleteCookie('mode')
+    setCookie('mode', 'guest')
   }
 
-  const resetMode = () => {
+  // FIXED: async + await logout so cookie is cleared on server BEFORE
+  // the app navigates away. Without await, a quick re-login would race
+  // the logout request, and the server would delete the *new* session token.
+  const resetMode = async () => {
     setMode(null)
-    setPasscode('')
+    deleteCookie('mode')
     try {
-      deleteCookie('mode')
-      deleteCookie('session_token') // update deletion
-    } catch (e) {
-      // ignore
+      await db.logout()
+    } catch {
+      // ignore network errors — local state is already cleared
     }
   }
 
   return (
     <AppContext.Provider value={{
       mode,
-      passcode,
       setPasscodeMode,
       setGuestMode,
       resetMode,
-      validatePasscode,
-      getCookie
     }}>
       {children}
     </AppContext.Provider>
