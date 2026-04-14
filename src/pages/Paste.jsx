@@ -9,18 +9,17 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { tomorrow } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import FileManager from '../components/FileManager';
 
-// ── Tab labels (UI only — all tabs share the same entry per passcode) ──────
 const TABS = [
   { id: 1, label: 'Tab 1' },
   { id: 2, label: 'Tab 2' },
   { id: 3, label: 'Tab 3' },
 ];
 
-// ── Code block ───────────────────────────────────────────────────────────
+// ── Code block ────────────────────────────────────────────────────────────
 const CodeBlock = ({ node, inline, className, children, ...props }) => {
   const code = String(children).replace(/\n$/, '');
-  const match = /language-(\w+)/.exec(className || '');
   const [copied, setCopied] = useState(false);
+  const match = /language-(\w+)/.exec(className || '');
 
   const handleCopy = useCallback(async () => {
     try { await navigator.clipboard.writeText(code); }
@@ -48,8 +47,8 @@ const CodeBlock = ({ node, inline, className, children, ...props }) => {
   ) : <code className={className} {...props}>{children}</code>;
 };
 
-// ── Tab bar ──────────────────────────────────────────────────────────────
-const TabBar = ({ activeTab, onTabChange, isDirty }) => {
+// ── Tab bar ───────────────────────────────────────────────────────────────
+const TabBar = ({ activeTab, onTabChange, tabStates }) => {
   const indicatorRef = useRef(null);
   const tabRefs = useRef({});
 
@@ -64,45 +63,51 @@ const TabBar = ({ activeTab, onTabChange, isDirty }) => {
   return (
     <div className="tab-bar" role="tablist" aria-label="Content tabs">
       <div ref={indicatorRef} className="tab-indicator" aria-hidden="true" />
-      {TABS.map(tab => (
-        <button
-          key={tab.id}
-          ref={el => tabRefs.current[tab.id] = el}
-          role="tab"
-          aria-selected={activeTab === tab.id}
-          aria-controls={`tabpanel-${tab.id}`}
-          id={`tab-${tab.id}`}
-          onClick={() => onTabChange(tab.id)}
-          className={`tab-btn ${activeTab === tab.id ? 'tab-btn--active' : ''}`}
-        >
-          {tab.label}
-          {/* Dirty dot only on the active tab (they all share same data) */}
-          {activeTab === tab.id && isDirty && (
-            <span className="tab-dot" aria-label="unsaved changes" />
-          )}
-        </button>
-      ))}
+      {TABS.map(tab => {
+        const isDirty = tabStates[tab.id]?.isDirty;
+        return (
+          <button
+            key={tab.id}
+            ref={el => tabRefs.current[tab.id] = el}
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            aria-controls={`tabpanel-${tab.id}`}
+            id={`tab-${tab.id}`}
+            onClick={() => onTabChange(tab.id)}
+            className={`tab-btn ${activeTab === tab.id ? 'tab-btn--active' : ''}`}
+          >
+            {tab.label}
+            {isDirty && <span className="tab-dot" aria-label="unsaved changes" />}
+          </button>
+        );
+      })}
     </div>
   );
 };
 
-// ── Main ─────────────────────────────────────────────────────────────────
+// ── Per-tab initial state factory ─────────────────────────────────────────
+const makeTab = () => ({
+  content: '',
+  editedContent: '',
+  isEditing: false,   // tabs with content → view mode; empty → edit mode after load
+  isLoading: true,
+  isFetched: false,
+  entryId: null,
+  entrySlug: null,
+  entryFiles: [],
+  editDate: null,
+  isDirty: false,
+});
+
+// ── Main ──────────────────────────────────────────────────────────────────
 const Paste = ({ mode }) => {
   const [activeTab, setActiveTab] = useState(1);
-
-  // Shared entry state — all tabs read/write the same entry
-  const [content, setContent]         = useState('');
-  const [editedContent, setEditedContent] = useState('');
-  const [isEditing, setIsEditing]     = useState(false);
-  const [isLoading, setIsLoading]     = useState(true);
-  const [isSaving, setIsSaving]       = useState(false);
-  const [entryId, setEntryId]         = useState(null);
-  const [entrySlug, setEntrySlug]     = useState(null);
-  const [entryFiles, setEntryFiles]   = useState([]);
-  const [pubDate, setPubDate]         = useState(null);
-  const [editDate, setEditDate]       = useState(null);
-  const [isDirty, setIsDirty]         = useState(false);
-  const [error, setError]             = useState('');
+  const [tabStates, setTabStates] = useState(() =>
+    Object.fromEntries(TABS.map(t => [t.id, makeTab()]))
+  );
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [hasAuthError, setHasAuthError] = useState(false);
   const [isFileManagerOpen, setIsFileManagerOpen] = useState(false);
 
   const { mode: appMode, resetMode } = useApp();
@@ -110,83 +115,114 @@ const Paste = ({ mode }) => {
   const isGuest = mode === 'guest';
   const isAuthenticated = appMode === 'passcode';
 
-  // ── Load the single shared entry ────────────────────────────────────────
-  const loadEntry = useCallback(async () => {
-    setIsLoading(true);
+  const cur = tabStates[activeTab];
+
+  // ── Update a single tab ───────────────────────────────────────────────
+  const setTab = useCallback((tabId, patch) => {
+    setTabStates(prev => ({
+      ...prev,
+      [tabId]: { ...prev[tabId], ...(typeof patch === 'function' ? patch(prev[tabId]) : patch) },
+    }));
+  }, []);
+
+  // ── Load one tab's entry ──────────────────────────────────────────────
+  const loadTab = useCallback(async (tabId) => {
+    if (tabStates[tabId].isFetched) return;
+    setTab(tabId, { isLoading: true });
+
     try {
       if (mode === 'admin') {
         if (appMode !== 'passcode') { navigate('/'); return; }
-        const entry = await db.getEntryByPasscode();
+        const entry = await db.getEntryByPasscode(tabId);
         if (entry) {
-          setContent(entry.content || '');
-          setEditedContent(entry.content || '');
-          setPubDate(new Date(entry.created_at));
-          setEditDate(new Date(entry.updated_at || entry.created_at));
-          setEntrySlug(entry.slug);
-          setEntryId(entry.id);
-          setEntryFiles(entry.files || []);
-          await db.incrementViews(entry.slug);
+          setTab(tabId, {
+            content: entry.content || '',
+            editedContent: entry.content || '',
+            isEditing: false,
+            entryId: entry.id,
+            entrySlug: entry.slug,
+            entryFiles: entry.files || [],
+            editDate: new Date(entry.updated_at || entry.created_at),
+            isLoading: false,
+            isFetched: true,
+            isDirty: false,
+          });
+          if (entry.slug) await db.incrementViews(entry.slug);
         } else {
-          setContent(''); setEditedContent('');
-          setPubDate(new Date()); setEditDate(new Date());
-          setIsEditing(true); // auto-open editor if no content yet
+          // Empty tab — open editor immediately, no button needed
+          setTab(tabId, { isEditing: true, isLoading: false, isFetched: true });
         }
       } else {
-        // Guest — single shared guest paste
+        // Guest: slug guest-tab-N
+        const guestSlug = `guest-tab-${tabId}`;
         try {
-          const entry = await db.getEntry('guest-paste');
+          const entry = await db.getEntry(guestSlug);
           if (entry?.content) {
-            setContent(entry.content); setEditedContent(entry.content);
-            setPubDate(new Date(entry.created_at));
-            setEditDate(new Date(entry.updated_at || entry.created_at));
-            setEntrySlug(entry.slug); setEntryId(entry.id);
-            setEntryFiles(entry.files || []);
+            setTab(tabId, {
+              content: entry.content,
+              editedContent: entry.content,
+              isEditing: false,
+              entryId: entry.id,
+              entrySlug: guestSlug,
+              entryFiles: entry.files || [],
+              editDate: new Date(entry.updated_at || entry.created_at),
+              isLoading: false,
+              isFetched: true,
+              isDirty: false,
+            });
           } else {
-            setContent(''); setEditedContent(''); setIsEditing(true);
+            setTab(tabId, { isEditing: true, isLoading: false, isFetched: true, entrySlug: guestSlug });
           }
         } catch {
-          setContent(''); setEditedContent(''); setIsEditing(true);
+          setTab(tabId, { isEditing: true, isLoading: false, isFetched: true, entrySlug: guestSlug });
         }
       }
     } catch (err) {
-      if (err?.message?.includes('401') || err?.message?.includes('Unauthorized') || err?.message?.includes('Token')) {
+      if (err?.message?.match(/401|Unauthorized|Token/)) {
+        setHasAuthError(true);
         await resetMode();
         window.location.href = '/';
         return;
       }
       setError('Failed to load. Please try again.');
-    } finally {
-      setIsLoading(false);
+      setTab(tabId, { isLoading: false, isFetched: true });
     }
-  }, [mode, appMode, navigate, resetMode]);
+  }, [tabStates, mode, appMode, navigate, resetMode, setTab]);
 
-  useEffect(() => { loadEntry(); }, []);
+  // Load active tab on mount + whenever it changes (lazy)
+  useEffect(() => { loadTab(activeTab); }, [activeTab]);
 
-  // ── Edit / Cancel / Save ────────────────────────────────────────────────
-  const handleEdit   = () => { setEditedContent(content); setIsEditing(true); };
-  const handleCancel = () => { setEditedContent(content); setIsEditing(false); setIsDirty(false); };
-
-  const handleContentChange = (val) => {
-    setEditedContent(val);
-    setIsDirty(val !== content);
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId);
+    setError('');
   };
+
+  // ── Edit / Cancel / Save ──────────────────────────────────────────────
+  const handleEdit   = () => setTab(activeTab, t => ({ ...t, isEditing: true, editedContent: t.content }));
+  const handleCancel = () => setTab(activeTab, t => ({ ...t, isEditing: false, editedContent: t.content, isDirty: false }));
+
+  const handleChange = (val) => setTab(activeTab, t => ({ ...t, editedContent: val, isDirty: val !== t.content }));
 
   const handleSave = async () => {
     setIsSaving(true); setError('');
     try {
-      const slug = entrySlug || (!isGuest ? utils.generateSlug() : undefined);
+      const slug = cur.entrySlug || (!isGuest ? utils.generateSlug() : `guest-tab-${activeTab}`);
       const saved = await db.createOrUpdateEntry({
-        slug: slug || '',
-        content: editedContent,
+        slug,
+        content: cur.editedContent,
         is_guest: isGuest,
-      });
-      setContent(saved.content);
-      setEditedContent(saved.content);
-      setEditDate(new Date(saved.updated_at || saved.created_at));
-      setEntryId(saved.id);
-      setEntrySlug(saved.slug);
-      setIsEditing(false);
-      setIsDirty(false);
+        tab_id: activeTab,
+      }, activeTab);
+      setTab(activeTab, t => ({
+        ...t,
+        content: saved.content,
+        editedContent: saved.content,
+        entryId: saved.id,
+        entrySlug: saved.slug || slug,
+        editDate: new Date(saved.updated_at || saved.created_at),
+        isEditing: false,
+        isDirty: false,
+      }));
     } catch {
       setError('Failed to save. Please try again.');
     } finally {
@@ -197,20 +233,19 @@ const Paste = ({ mode }) => {
   // Ctrl+S
   useEffect(() => {
     const onKey = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's' && isEditing) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's' && cur.isEditing) {
         e.preventDefault(); handleSave();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [isEditing, editedContent]);
+  }, [cur, activeTab]);
 
   const handleLogout = async () => { await resetMode(); navigate('/'); };
 
-  // ── Render ───────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────
   return (
     <div className="paste-shell">
-      {/* Header */}
       <header className="paste-header">
         <div className="paste-header__inner">
           <div className="paste-header__left">
@@ -222,7 +257,6 @@ const Paste = ({ mode }) => {
         </div>
       </header>
 
-      {/* Main */}
       <main className="paste-main">
         <div className="paste-container">
 
@@ -233,93 +267,92 @@ const Paste = ({ mode }) => {
             </div>
           )}
 
-          {/* Tab bar — purely UI, all tabs share the same content */}
-          <TabBar
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-            isDirty={isDirty}
-          />
+          <TabBar activeTab={activeTab} onTabChange={handleTabChange} tabStates={tabStates} />
 
-          {/* Single panel — tab switch is instant, no re-fetch */}
-          {isLoading ? (
-            <div className="paste-loading">
-              <div className="paste-loading__dot" />
-              <div className="paste-loading__dot" style={{ animationDelay: '0.15s' }} />
-              <div className="paste-loading__dot" style={{ animationDelay: '0.3s' }} />
-            </div>
-          ) : (
-            <div className="paste-panel">
-              {/* Editor / viewer */}
-              <div className="surface paste-editor-wrap">
-                {isEditing ? (
-                  <textarea
-                    value={editedContent}
-                    onChange={e => handleContentChange(e.target.value)}
-                    className="paste-textarea"
-                    placeholder="Start typing… (Markdown supported)"
-                    aria-label="Paste content editor"
-                    autoFocus
-                  />
-                ) : (
-                  <div className="paste-prose">
-                    {content ? (
-                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: CodeBlock }}>
-                        {content}
-                      </ReactMarkdown>
-                    ) : (
-                      <div className="paste-empty">
-                        <p>Nothing here yet.</p>
-                        <button onClick={() => setIsEditing(true)} className="btn btn-primary mt-3">
-                          Start writing
-                        </button>
-                      </div>
-                    )}
+          {TABS.map(tab => (
+            <div
+              key={tab.id}
+              id={`tabpanel-${tab.id}`}
+              role="tabpanel"
+              aria-labelledby={`tab-${tab.id}`}
+              hidden={activeTab !== tab.id}
+            >
+              {activeTab === tab.id && (
+                tabStates[tab.id].isLoading ? (
+                  <div className="paste-loading">
+                    <div className="paste-loading__dot" />
+                    <div className="paste-loading__dot" style={{ animationDelay: '0.15s' }} />
+                    <div className="paste-loading__dot" style={{ animationDelay: '0.3s' }} />
                   </div>
-                )}
-              </div>
+                ) : (
+                  <div className="paste-panel">
+                    <div className="surface paste-editor-wrap">
+                      {tabStates[tab.id].isEditing ? (
+                        <textarea
+                          value={tabStates[tab.id].editedContent}
+                          onChange={e => handleChange(e.target.value)}
+                          className="paste-textarea"
+                          placeholder="Start typing… (Markdown supported)"
+                          aria-label={`Tab ${tab.id} editor`}
+                          autoFocus={activeTab === tab.id}
+                        />
+                      ) : (
+                        <div className="paste-prose">
+                          {tabStates[tab.id].content ? (
+                            <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: CodeBlock }}>
+                              {tabStates[tab.id].content}
+                            </ReactMarkdown>
+                          ) : (
+                            // Empty but saved state — shouldn't normally reach here
+                            <div className="paste-empty"><p>Nothing here yet.</p></div>
+                          )}
+                        </div>
+                      )}
+                    </div>
 
-              {/* Action bar */}
-              <div className="paste-actions">
-                <div className="paste-actions__left">
-                  {isEditing ? (
-                    <>
-                      <button
-                        onClick={handleSave}
-                        disabled={isSaving}
-                        className="btn btn-primary"
-                        aria-label="Save (Ctrl+S)"
-                      >
-                        <Save size={15} aria-hidden="true" />
-                        <span>{isSaving ? 'Saving…' : 'Save'}</span>
-                      </button>
-                      <button onClick={handleCancel} className="btn" aria-label="Cancel editing">
-                        <X size={15} aria-hidden="true" />
-                        <span>Cancel</span>
-                      </button>
-                    </>
-                  ) : (
-                    <button onClick={handleEdit} className="btn" aria-label="Edit paste">
-                      <Edit size={15} aria-hidden="true" />
-                      <span>Edit</span>
-                    </button>
-                  )}
-                </div>
-                {editDate && (
-                  <span className="paste-meta">{utils.formatDate(editDate)}</span>
-                )}
-              </div>
+                    <div className="paste-actions">
+                      <div className="paste-actions__left">
+                        {tabStates[tab.id].isEditing ? (
+                          <>
+                            <button
+                              onClick={handleSave}
+                              disabled={isSaving}
+                              className="btn btn-primary"
+                              aria-label="Save (Ctrl+S)"
+                            >
+                              <Save size={15} aria-hidden="true" />
+                              <span>{isSaving ? 'Saving…' : 'Save'}</span>
+                            </button>
+                            <button onClick={handleCancel} className="btn" aria-label="Cancel">
+                              <X size={15} aria-hidden="true" />
+                              <span>Cancel</span>
+                            </button>
+                          </>
+                        ) : (
+                          <button onClick={handleEdit} className="btn" aria-label="Edit">
+                            <Edit size={15} aria-hidden="true" />
+                            <span>Edit</span>
+                          </button>
+                        )}
+                      </div>
+                      {tabStates[tab.id].editDate && (
+                        <span className="paste-meta">{utils.formatDate(tabStates[tab.id].editDate)}</span>
+                      )}
+                    </div>
+                  </div>
+                )
+              )}
             </div>
-          )}
+          ))}
         </div>
 
-        {/* FAB — file manager (only when entry exists) */}
         {(isGuest || isAuthenticated) && (
           <button
-            onClick={() => entryId && setIsFileManagerOpen(true)}
-            disabled={!entryId}
-            className={`paste-fab ${!entryId ? 'paste-fab--disabled' : ''}`}
-            aria-label={entryId ? 'Open file manager' : 'Save first to manage files'}
-            title={entryId ? 'File Manager' : 'Save your paste first'}
+            onClick={() => cur.entryId && setIsFileManagerOpen(true)}
+            disabled={!cur.entryId}
+            className={`paste-fab ${!cur.entryId ? 'paste-fab--disabled' : ''}`}
+            aria-label={cur.entryId ? 'File manager' : 'Save first to manage files'}
+            title={cur.entryId ? 'File Manager' : 'Save your paste first'}
           >
             <Files size={22} aria-hidden="true" />
           </button>
@@ -329,9 +362,9 @@ const Paste = ({ mode }) => {
       <FileManager
         isOpen={isFileManagerOpen}
         onClose={() => setIsFileManagerOpen(false)}
-        entryId={entryId}
-        files={entryFiles}
-        onFilesChange={setEntryFiles}
+        entryId={cur.entryId}
+        files={cur.entryFiles}
+        onFilesChange={files => setTab(activeTab, t => ({ ...t, entryFiles: files }))}
       />
     </div>
   );
