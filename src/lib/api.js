@@ -47,12 +47,11 @@ async function fetchApi(endpoint, options = {}) {
 }
 
 export const db = {
-    async createOrUpdateEntry(data, tabId = 1) {
-        const result = await fetchApi('/entries', {
+    async createOrUpdateEntry(data) {
+        return await fetchApi('/entries', {
             method: 'POST',
-            body: JSON.stringify({ data, tab_id: tabId }),
+            body: JSON.stringify({ data }),
         });
-        return result;
     },
 
     async getEntry(slug) {
@@ -61,8 +60,8 @@ export const db = {
         return entry;
     },
 
-    async getEntryByPasscode(tabId = 1) {
-        return await fetchApi(`/entries/me?tab=${tabId}`);
+    async getEntryByPasscode() {
+        return await fetchApi('/entries/me');
     },
 
     // Delete entry
