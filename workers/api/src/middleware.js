@@ -54,19 +54,21 @@ export const authMiddleware = () => {
     return async (c, next) => {
         const authHeader = c.req.header('Authorization');
         const token = authHeader?.replace('Bearer ', '') || getCookie(c, 'session_token');
-        
+
         if (!token) throw new ApiError(ErrorCode.UNAUTHORIZED, 'Unauthorized', 401);
-        
-        const secret = c.env.TOKEN_SECRET || 'fallback-secret-change-me';
+
+        const secret = c.env.TOKEN_SECRET;
+        if (!secret) throw new ApiError(ErrorCode.INTERNAL_ERROR, 'Server auth misconfigured', 500);
+
         const payload = await verifyToken(token, secret);
-        
+
         if (!payload || payload.exp < Math.floor(Date.now() / 1000)) {
             throw new ApiError(ErrorCode.UNAUTHORIZED, 'Token expired or invalid', 401);
         }
-        
+
         c.set('userId', payload.userId || payload.passcode);
         c.set('passcode', payload.passcode);
-        
+
         await next();
     };
 };

@@ -47,12 +47,10 @@ async function fetchApi(endpoint, options = {}) {
 }
 
 export const db = {
-    // Create or update a paste entry
-    async createOrUpdateEntry(data, passcode) {
-        // passcode is optional now if token is used
+    async createOrUpdateEntry(data, tabId = 1) {
         const result = await fetchApi('/entries', {
             method: 'POST',
-            body: JSON.stringify({ data, passcode }),
+            body: JSON.stringify({ data, tab_id: tabId }),
         });
         return result;
     },
@@ -63,8 +61,8 @@ export const db = {
         return entry;
     },
 
-    async getEntryByPasscode() {
-        return await fetchApi(`/entries/me`);
+    async getEntryByPasscode(tabId = 1) {
+        return await fetchApi(`/entries/me?tab=${tabId}`);
     },
 
     // Delete entry

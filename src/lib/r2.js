@@ -77,9 +77,10 @@ export function generateKey(filename) {
  * Get a presigned PUT URL to upload a file directly to R2.
  * @param {string} key - R2 object key (generate via generateKey())
  * @param {boolean} isGuest - whether the upload is from a guest session
+ * @param {string|null} guestKey - signed guest-upload ticket from paste-api (required if isGuest)
  * @param {number} expires - TTL in seconds (default 600 for auth, 300 for guests)
  */
-export async function getUploadUrl(key, isGuest = false, expires = isGuest ? 300 : 600) {
+export async function getUploadUrl(key, isGuest = false, guestKey = null, expires = isGuest ? 300 : 600) {
   if (!SIGNER_URL) throw new Error('R2 signer URL not configured (VITE_R2_SIGNER_URL)');
 
   const headers = { 'Content-Type': 'application/json' };
@@ -88,6 +89,7 @@ export async function getUploadUrl(key, isGuest = false, expires = isGuest ? 300
     if (token) headers['Authorization'] = `Bearer ${token}`;
   } else {
     headers['X-Upload-Mode'] = 'guest';
+    if (guestKey) headers['X-Guest-Key'] = guestKey;
   }
 
   const resp = await fetch(`${SIGNER_URL}/sign/upload`, {
@@ -107,6 +109,7 @@ export async function getUploadUrl(key, isGuest = false, expires = isGuest ? 300
   if (payload?.error) throw new Error(payload.error);
   throw signerResponseError('upload', payload);
 }
+
 
 /**
  * Get a presigned GET URL to download a file from R2.

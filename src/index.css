@@ -50,3 +50,148 @@
 /* Spinner */
 @keyframes spin { to { transform: rotate(360deg); } }
 .animate-spin { animation: spin 1s linear infinite; }
+
+/* ── Paste shell layout ─────────────────────────────────────────────────── */
+.paste-shell {
+  @apply min-h-screen bg-black text-gray-200 flex flex-col;
+}
+
+/* Header */
+.paste-header {
+  @apply sticky top-0 z-30 border-b border-neutral-900 bg-black/90 backdrop-blur-sm;
+}
+.paste-header__inner {
+  @apply max-w-4xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3;
+}
+.paste-header__left {
+  @apply flex items-center gap-3 min-w-0;
+}
+.paste-header__right {
+  @apply flex items-center gap-2 flex-shrink-0;
+}
+.paste-back-btn {
+  @apply h-8 px-2 gap-1 text-sm flex-shrink-0;
+}
+.paste-back-label {
+  @apply hidden sm:inline;
+}
+.paste-title-block {
+  @apply flex flex-col min-w-0;
+}
+.paste-title {
+  @apply text-sm font-medium text-white leading-tight truncate;
+}
+.paste-subtitle {
+  @apply text-xs text-neutral-500 leading-tight truncate hidden sm:block;
+}
+
+/* Main */
+.paste-main {
+  @apply flex-1 relative;
+}
+.paste-container {
+  @apply max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-4;
+}
+
+/* Error */
+.paste-error {
+  @apply flex items-center gap-2 text-red-400 text-sm bg-red-950/30 border border-red-900/50 rounded-lg px-3 py-2.5;
+}
+
+/* ── Tab bar ─────────────────────────────────────────────────────────────── */
+.tab-bar {
+  @apply relative flex bg-neutral-950 border border-neutral-900 rounded-xl p-1 gap-0.5;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tab-bar::-webkit-scrollbar { display: none; }
+
+/* Animated sliding indicator */
+.tab-indicator {
+  @apply absolute top-1 bottom-1 bg-neutral-800 rounded-lg pointer-events-none;
+  transition: transform 220ms cubic-bezier(0.4, 0, 0.2, 1), width 220ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, width;
+}
+
+.tab-btn {
+  @apply relative z-10 flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium
+         text-neutral-500 transition-colors duration-150 cursor-pointer flex-shrink-0
+         focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-700/60;
+  white-space: nowrap;
+  min-height: 36px;
+  min-width: 72px;
+  justify-content: center;
+}
+.tab-btn--active {
+  @apply text-white;
+}
+.tab-btn:not(.tab-btn--active):hover {
+  @apply text-neutral-300;
+}
+
+/* Unsaved-changes dot */
+.tab-dot {
+  @apply w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0;
+}
+
+/* ── Panel content ───────────────────────────────────────────────────────── */
+.paste-panel {
+  @apply space-y-3;
+}
+
+.paste-editor-wrap {
+  @apply overflow-hidden;
+}
+
+.paste-textarea {
+  @apply w-full min-h-72 sm:min-h-96 p-4 bg-transparent border-0 text-gray-200
+         placeholder:text-neutral-600 focus:outline-none focus:ring-0 resize-y
+         font-mono text-sm leading-relaxed;
+}
+
+.paste-prose {
+  @apply prose p-4 sm:p-6 overflow-x-auto min-h-72;
+}
+
+.paste-empty {
+  @apply min-h-64 flex flex-col items-center justify-center text-neutral-600 text-sm;
+}
+
+/* ── Action bar ──────────────────────────────────────────────────────────── */
+.paste-actions {
+  @apply flex items-center justify-between gap-3 flex-wrap;
+}
+.paste-actions__left {
+  @apply flex items-center gap-2;
+}
+.paste-meta {
+  @apply text-xs text-neutral-600 tabular-nums;
+}
+
+/* ── Loading dots ────────────────────────────────────────────────────────── */
+.paste-loading {
+  @apply flex items-center justify-center gap-1.5 py-24;
+}
+.paste-loading__dot {
+  @apply w-1.5 h-1.5 rounded-full bg-neutral-700;
+  animation: pasteDot 1s ease-in-out infinite;
+}
+@keyframes pasteDot {
+  0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
+  40%           { opacity: 1;   transform: scale(1);   }
+}
+
+/* ── FAB (File manager) ──────────────────────────────────────────────────── */
+.paste-fab {
+  @apply fixed bottom-5 right-5 sm:bottom-6 sm:right-6
+         w-12 h-12 rounded-full border border-neutral-800 bg-neutral-950
+         flex items-center justify-center z-40
+         transition-all duration-150 cursor-pointer
+         hover:bg-neutral-900 hover:border-neutral-700 active:scale-95
+         focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-700/60;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.6);
+}
+.paste-fab--disabled {
+  @apply opacity-40 cursor-not-allowed pointer-events-none;
+}
+

@@ -9,8 +9,10 @@ export const createEntrySchema = z.object({
     slug: z.string().regex(/^[a-zA-Z0-9-]{3,64}$/).optional().or(z.literal('')),
     content: z.string().max(512_000).optional().default(''),
     is_guest: z.boolean().optional().default(false),
+    tab_id: z.number().int().min(1).max(3).optional(),
   }),
   passcode: z.string().max(128).optional(),
+  tab_id: z.number().int().min(1).max(3).optional(),
 });
 
 export const fileMetaSchema = z.object({

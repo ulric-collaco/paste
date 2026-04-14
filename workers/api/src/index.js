@@ -7,8 +7,14 @@ import { authMiddleware, requestLogger, generateToken, verifyToken } from './mid
 
 const app = new Hono();
 
+const ALLOWED_ORIGINS = [
+  'https://paste.collacou.com',
+  'http://localhost:3000',
+  'http://localhost:5173',
+];
+
 app.use('/*', cors({
-  origin: (origin) => origin,
+  origin: (origin) => ALLOWED_ORIGINS.includes(origin) ? origin : null,
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowHeaders: ['Content-Type', 'Authorization', 'x-requested-with'],
   credentials: true,
@@ -109,9 +115,12 @@ app.post('/api/v1/auth/login', zValidator('json', loginSchema), async (c) => {
 
 // ── ENTRIES ────────────────────────────────────────────────────────────────
 
-// GET own entry (authenticated)
+// GET own entry (authenticated) — supports ?tab=1|2|3
 app.get('/api/v1/entries/me', authMiddleware(), async (c) => {
   const passcode = c.get('passcode');
+  const tab = parseInt(c.req.query('tab') || '1', 10);
+  const tabTag = `tab${tab}`; // used to scope slug
+
   const { results } = await c.env.DB.prepare(`
     SELECT e.*, json_group_array(json_object(
       'id', f.id, 'entry_id', f.entry_id, 'key', f.key,
@@ -119,8 +128,8 @@ app.get('/api/v1/entries/me', authMiddleware(), async (c) => {
       'file_size', f.file_size, 'created_at', f.created_at
     )) as files
     FROM entries e LEFT JOIN files f ON e.id = f.entry_id
-    WHERE e.passcode = ? GROUP BY e.id
-  `).bind(passcode).all();
+    WHERE e.passcode = ? AND e.tab_tag = ? GROUP BY e.id
+  `).bind(passcode, tabTag).all();
 
   if (!results || results.length === 0) return c.json({ data: null });
   const entry = results[0];
@@ -153,45 +162,54 @@ app.get('/api/v1/entries/:slug', async (c) => {
   return c.json({ data: entry, meta: { requestId: c.get('requestId') } });
 });
 
-// POST create/update entry
+// POST create/update entry (supports tab_id for multi-tab, guest-tab-N for guest)
 app.post('/api/v1/entries', zValidator('json', createEntrySchema), async (c) => {
   const reqBody = c.req.valid('json');
   const data = reqBody.data;
+  const tab = Math.min(Math.max(parseInt(reqBody.tab_id || data.tab_id || '1', 10), 1), 3);
+  const tabTag = `tab${tab}`;
   let passcode = reqBody.passcode;
 
   if (!data.is_guest) {
     const authHeader = c.req.header('Authorization');
     const token = authHeader?.replace('Bearer ', '');
     if (token) {
-      const secret = c.env.TOKEN_SECRET || 'fallback-secret-change-me';
-      const payload = await verifyToken(token, secret);
-      if (payload?.passcode) passcode = payload.passcode;
+      const secret = c.env.TOKEN_SECRET;
+      if (secret) {
+        const payload = await verifyToken(token, secret);
+        if (payload?.passcode) passcode = payload.passcode;
+      }
     }
   }
 
   if (data.is_guest) {
+    // Each guest tab gets its own fixed slug
+    const guestSlug = `guest-tab-${tab}`;
     const result = await c.env.DB.prepare(`
-      INSERT INTO entries (slug, content, is_guest, updated_at)
-      VALUES ('guest-paste', ?, 1, datetime('now'))
-      ON CONFLICT(slug) DO UPDATE SET content = excluded.content, updated_at = datetime('now')
+      INSERT INTO entries (slug, content, is_guest, tab_tag, updated_at)
+      VALUES (?, ?, 1, ?, datetime('now'))
+      ON CONFLICT(slug) DO UPDATE SET content = excluded.content, tab_tag = excluded.tab_tag, updated_at = datetime('now')
       RETURNING *
-    `).bind(data.content).first();
+    `).bind(guestSlug, data.content, tabTag).first();
     return c.json({ data: result, meta: { requestId: c.get('requestId') } });
   }
 
   if (passcode) {
-    const existing = await c.env.DB.prepare('SELECT * FROM entries WHERE passcode = ?').bind(passcode).first();
+    // Scope lookup to this user + this tab
+    const existing = await c.env.DB.prepare(
+      'SELECT * FROM entries WHERE passcode = ? AND tab_tag = ?'
+    ).bind(passcode, tabTag).first();
     if (existing) {
       const result = await c.env.DB.prepare(`
-        UPDATE entries SET content = ?, updated_at = datetime('now') WHERE passcode = ? RETURNING *
-      `).bind(data.content, passcode).first();
+        UPDATE entries SET content = ?, updated_at = datetime('now') WHERE passcode = ? AND tab_tag = ? RETURNING *
+      `).bind(data.content, passcode, tabTag).first();
       return c.json({ data: result, meta: { requestId: c.get('requestId') } });
     } else {
       const slug = data.slug || generateSlug();
       const result = await c.env.DB.prepare(`
-        INSERT INTO entries (slug, content, passcode, is_guest, created_at, updated_at)
-        VALUES (?, ?, ?, 0, datetime('now'), datetime('now')) RETURNING *
-      `).bind(slug, data.content, passcode).first();
+        INSERT INTO entries (slug, content, passcode, is_guest, tab_tag, created_at, updated_at)
+        VALUES (?, ?, ?, 0, ?, datetime('now'), datetime('now')) RETURNING *
+      `).bind(slug, data.content, passcode, tabTag).first();
       return c.json({ data: result, meta: { requestId: c.get('requestId') } });
     }
   }

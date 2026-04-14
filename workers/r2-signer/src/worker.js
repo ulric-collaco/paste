@@ -19,6 +19,11 @@
  */
 
 const KEY_ALLOWLIST_RE = /^[a-zA-Z0-9_\-.]{1,512}$/
+const ALLOWED_ORIGINS = [
+  'https://paste.collacou.com',
+  'http://localhost:3000',
+  'http://localhost:5173',
+]
 
 export default {
   async fetch(request, env) {
@@ -41,18 +46,25 @@ export default {
     // ── Auth gate ──────────────────────────────────────────────────────────
     const authHeader = request.headers.get('Authorization') || ''
     const token = authHeader.replace(/^Bearer\s+/i, '').trim()
-
-    // Guest uploads use a short-lived signed key passed as X-Guest-Key header
+    const guestKey = request.headers.get('X-Guest-Key') || ''
     const isGuest = request.headers.get('X-Upload-Mode') === 'guest'
+
+    const secret = env.TOKEN_SECRET
+    if (!secret) return json({ error: 'Server auth misconfigured' }, 500, request)
 
     if (!isGuest) {
       // Authenticated users must provide a valid JWT
       if (!token) return json({ error: 'Unauthorized' }, 401, request)
-      const valid = await verifyToken(token, env.TOKEN_SECRET)
+      const valid = await verifyToken(token, secret)
       if (!valid) return json({ error: 'Invalid or expired token' }, 401, request)
     } else {
-      // For guests we allow uploads but enforce a short TTL cap
-      // No token required — quota is enforced by the paste-api worker
+      // Guest uploads require a signed short-lived upload ticket from paste-api
+      // (scope: 'guest-upload') — prevents anonymous bucket writes
+      if (!guestKey) return json({ error: 'Guest upload key required' }, 401, request)
+      const payload = await verifyToken(guestKey, secret)
+      if (!payload || payload.scope !== 'guest-upload') {
+        return json({ error: 'Invalid or expired guest upload key' }, 401, request)
+      }
     }
 
     // ── Upload URL (PUT) ────────────────────────────────────────────────────
@@ -101,13 +113,14 @@ export default {
 
 async function verifyToken(token, secret) {
   try {
+    if (!secret) return null
     const parts = token.split('.')
     if (parts.length !== 3) return null
     const [headerB64, payloadB64, sigB64] = parts
     const data = `${headerB64}.${payloadB64}`
     const enc = new TextEncoder()
     const key = await crypto.subtle.importKey(
-      'raw', enc.encode(secret || 'fallback'),
+      'raw', enc.encode(secret),
       { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']
     )
     const sig = base64urlDecode(sigB64)
@@ -165,8 +178,8 @@ async function presignUrl({ method, key, expires, env }) {
   }
 
   if (method === 'GET') {
-    const baseName = key.split('/').pop() || 'download'
-    qp['response-content-disposition'] = `attachment; filename="${baseName}"`
+    const downloadName = originalFilenameFromKey(key)
+    qp['response-content-disposition'] = `attachment; filename="${downloadName}"`
   }
 
   const canonicalQueryString = Object.keys(qp).sort()
@@ -230,12 +243,20 @@ function encodePathPreserveSlash(input) {
   return encodeQueryRfc3986(input).replace(/%2F/g, '/')
 }
 
+function originalFilenameFromKey(key) {
+  const baseName = key.split('/').pop() || 'download'
+  // Keys are generated as: {timestamp}_{8-char-id}_{sanitized-filename}
+  const match = baseName.match(/^\d+_[A-Za-z0-9]{8}_(.+)$/)
+  return match?.[1] || baseName
+}
+
 function corsHeaders(request) {
-  const origin = request.headers.get('Origin') || '*'
+  const origin = request.headers.get('Origin') || ''
+  const allowed = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]
   return {
-    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Origin': allowed,
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Upload-Mode',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Upload-Mode, X-Guest-Key',
     'Access-Control-Max-Age': '3600',
     'Vary': 'Origin',
   }
