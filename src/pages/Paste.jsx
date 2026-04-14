@@ -364,13 +364,13 @@ const Paste = ({ mode }) => {
                         <textarea
                           value={tabStates[tab.id].editedContent}
                           onChange={e => handleContentChange(e.target.value)}
-                          className="textarea paste-textarea"
+                          className="paste-textarea"
                           placeholder={`Tab ${tab.id} — start typing…`}
                           aria-label={`Tab ${tab.id} content editor`}
                           autoFocus
                         />
                       ) : (
-                        <div className="prose paste-prose">
+                        <div className="paste-prose">
                           {tabStates[tab.id].content ? (
                             <ReactMarkdown
                               remarkPlugins={[remarkGfm]}

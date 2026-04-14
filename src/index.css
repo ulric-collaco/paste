@@ -53,7 +53,8 @@
 
 /* ── Paste shell layout ─────────────────────────────────────────────────── */
 .paste-shell {
-  @apply min-h-screen bg-black text-gray-200 flex flex-col;
+  @apply bg-black text-gray-200 flex flex-col;
+  /* Let content dictate height — no forced min-h-screen which creates black void */
 }
 
 /* Header */
@@ -87,10 +88,12 @@
 
 /* Main */
 .paste-main {
-  @apply flex-1 relative;
+  /* No flex-1 — that was causing the black void below short content */
+  @apply relative;
 }
 .paste-container {
-  @apply max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-4;
+  /* pb-24 ensures content always clears the fixed FAB on mobile */
+  @apply max-w-4xl mx-auto px-4 sm:px-6 py-6 pb-24 space-y-4;
 }
 
 /* Error */
@@ -144,28 +147,51 @@
 }
 
 .paste-textarea {
-  @apply w-full min-h-72 sm:min-h-96 p-4 bg-transparent border-0 text-gray-200
-         placeholder:text-neutral-600 focus:outline-none focus:ring-0 resize-y
+  /* No forced min-height — grows with content. resize-none on mobile to prevent overflow. */
+  @apply w-full p-4 bg-transparent border-0 text-gray-200
+         placeholder:text-neutral-600 focus:outline-none focus:ring-0
          font-mono text-sm leading-relaxed;
+  min-height: 160px;
+  resize: vertical;
+  /* Prevent textarea expanding past viewport width on mobile */
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .paste-prose {
-  @apply prose p-4 sm:p-6 overflow-x-auto min-h-72;
+  /* Prose class applied here directly since JSX no longer adds it */
+  @apply max-w-none text-neutral-200 leading-8 p-4 sm:p-6 overflow-x-auto;
 }
+/* Paste-prose markdown styles (mirrors global .prose) */
+.paste-prose h1 { @apply text-3xl font-semibold text-white mt-4 mb-4 border-b border-neutral-900 pb-2; }
+.paste-prose h2 { @apply text-2xl font-semibold text-white mt-6 mb-3; }
+.paste-prose h3 { @apply text-xl font-medium text-white mt-5 mb-2; }
+.paste-prose p  { @apply text-neutral-300 mb-3; }
+.paste-prose a  { @apply text-neutral-200 underline decoration-neutral-700 hover:decoration-neutral-500; }
+.paste-prose code { @apply bg-neutral-900 text-neutral-200 px-1.5 py-0.5 rounded text-sm font-mono; }
+.paste-prose pre { @apply bg-neutral-950 text-neutral-200 p-4 rounded-lg overflow-x-auto my-4 border border-neutral-900; }
+.paste-prose blockquote { @apply border-l-4 border-neutral-800 pl-4 italic text-neutral-400 my-4; }
+.paste-prose ul { @apply list-disc list-inside mb-4 space-y-1; }
+.paste-prose ol { @apply list-decimal list-inside mb-4 space-y-1; }
+.paste-prose strong { @apply text-white font-semibold; }
+.paste-prose table { @apply w-full border-collapse border border-neutral-800 my-4; }
+.paste-prose th, .paste-prose td { @apply border border-neutral-800 px-3 py-2 text-left; }
 
 .paste-empty {
-  @apply min-h-64 flex flex-col items-center justify-center text-neutral-600 text-sm;
+  @apply py-12 flex flex-col items-center justify-center text-neutral-600 text-sm;
 }
 
 /* ── Action bar ──────────────────────────────────────────────────────────── */
 .paste-actions {
-  @apply flex items-center justify-between gap-3 flex-wrap;
+  /* Stack vertically on very small screens, row on sm+ */
+  @apply flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2;
 }
 .paste-actions__left {
   @apply flex items-center gap-2;
 }
 .paste-meta {
-  @apply text-xs text-neutral-600 tabular-nums;
+  /* Date sits below buttons on mobile, right-aligned on desktop */
+  @apply text-xs text-neutral-600 tabular-nums self-start sm:self-auto;
 }
 
 /* ── Loading dots ────────────────────────────────────────────────────────── */
