@@ -42,6 +42,7 @@ const Landing = () => {
       <div className="container-page min-h-[calc(100vh-80px)] flex items-center justify-center">
         <div className="w-full max-w-md relative z-10">
           <header className="text-center mb-10">
+            <img src="/favicon.png" alt="Pastry Logo" className="w-16 h-16 mx-auto mb-4 object-contain rounded-lg" />
             <h1 className="heading-xl">Pastry</h1>
             <p className="mt-3 text-neutral-400">Your universal cross-device clipboard & file sync</p>
           </header>
