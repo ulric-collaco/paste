@@ -123,13 +123,17 @@ app.get('/api/v1/entries/me', authMiddleware(), async (c) => {
   const tabTag = `tab${tab}`;
 
   const { results } = await c.env.DB.prepare(`
-    SELECT e.*, json_group_array(json_object(
-      'id', f.id, 'entry_id', f.entry_id, 'key', f.key,
-      'file_url', f.file_url, 'file_name', f.file_name,
-      'file_size', f.file_size, 'created_at', f.created_at
-    )) as files
-    FROM entries e LEFT JOIN files f ON e.id = f.entry_id
-    WHERE e.passcode = ? AND e.tab_tag = ? GROUP BY e.id
+    SELECT e.*, (
+      SELECT json_group_array(json_object(
+        'id', f.id, 'entry_id', f.entry_id, 'key', f.key,
+        'file_url', f.file_url, 'file_name', f.file_name,
+        'file_size', f.file_size, 'created_at', f.created_at
+      ))
+      FROM files f JOIN entries e2 ON f.entry_id = e2.id
+      WHERE e2.passcode = e.passcode
+    ) as files
+    FROM entries e
+    WHERE e.passcode = ? AND e.tab_tag = ?
   `).bind(passcode, tabTag).all();
 
   if (!results || results.length === 0) return c.json({ data: null });
@@ -145,13 +149,18 @@ app.get('/api/v1/entries/me', authMiddleware(), async (c) => {
 app.get('/api/v1/entries/:slug', async (c) => {
   const slug = c.req.param('slug');
   const { results } = await c.env.DB.prepare(`
-    SELECT e.*, json_group_array(json_object(
-      'id', f.id, 'entry_id', f.entry_id, 'key', f.key,
-      'file_url', f.file_url, 'file_name', f.file_name,
-      'file_size', f.file_size, 'created_at', f.created_at
-    )) as files
-    FROM entries e LEFT JOIN files f ON e.id = f.entry_id
-    WHERE e.slug = ? GROUP BY e.id
+    SELECT e.*, (
+      SELECT json_group_array(json_object(
+        'id', f.id, 'entry_id', f.entry_id, 'key', f.key,
+        'file_url', f.file_url, 'file_name', f.file_name,
+        'file_size', f.file_size, 'created_at', f.created_at
+      ))
+      FROM files f 
+      WHERE (e.is_guest = 1 AND f.is_guest = 1)
+         OR (e.is_guest = 0 AND f.entry_id IN (SELECT id FROM entries e2 WHERE e2.passcode = e.passcode))
+    ) as files
+    FROM entries e
+    WHERE e.slug = ?
   `).bind(slug).all();
 
   if (!results || results.length === 0) throw new ApiError(ErrorCode.ENTRY_NOT_FOUND, 'Entry not found', 404);
