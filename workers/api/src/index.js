@@ -9,6 +9,7 @@ const app = new Hono();
 
 const ALLOWED_ORIGINS = [
   'https://paste.collacou.com',
+  'https://paste.ulriccollaco.me',
   'http://localhost:3000',
   'http://localhost:5173',
 ];

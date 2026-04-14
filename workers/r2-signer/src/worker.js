@@ -21,6 +21,7 @@
 const KEY_ALLOWLIST_RE = /^[a-zA-Z0-9_\-.]{1,512}$/
 const ALLOWED_ORIGINS = [
   'https://paste.collacou.com',
+  'https://paste.ulriccollaco.me',
   'http://localhost:3000',
   'http://localhost:5173',
 ]
