@@ -57,8 +57,9 @@ const rateLimitMiddleware = (limit, windowMs) => async (c, next) => {
 
 // General API — 120 req/min
 app.use('/api/*', rateLimitMiddleware(120, 60_000));
-// Auth — 10 req/15min (brute-force protection)
-app.use('/api/v1/auth/*', rateLimitMiddleware(10, 15 * 60_000));
+// Login only — 20 attempts / 15 min per IP (brute-force protection)
+// Logout is intentionally NOT rate-limited here — it must always succeed
+app.use('/api/v1/auth/login', rateLimitMiddleware(20, 15 * 60_000));
 
 // ── Global Error Handler ───────────────────────────────────────────────────
 app.onError((err, c) => {
