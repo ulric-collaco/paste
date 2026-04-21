@@ -88,6 +88,8 @@ function generateSlug(length = 8) {
   return result;
 }
 
+const FILE_KEY_RE = /^[a-zA-Z0-9_\-.]{1,512}$/;
+
 // ── Health check ───────────────────────────────────────────────────────────
 app.get('/api/v1/health', async (c) => {
   try {
@@ -254,6 +256,37 @@ app.patch('/api/v1/entries/:id/clear', authMiddleware(), async (c) => {
 });
 
 // ── FILES ──────────────────────────────────────────────────────────────────
+
+// POST guest upload ticket — unsigned guest uploads are not allowed.
+app.post('/api/v1/files/guest-upload-ticket', async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const entryId = Number(body?.entry_id || 0);
+  const key = String(body?.key || '');
+  const requestedExpires = Number(body?.expires || 300);
+
+  if (!entryId) throw new ApiError(ErrorCode.VALIDATION_ERROR, 'Missing entry_id', 400);
+  if (!FILE_KEY_RE.test(key)) throw new ApiError(ErrorCode.VALIDATION_ERROR, 'Invalid key format', 400);
+
+  const entry = await c.env.DB.prepare('SELECT id, is_guest FROM entries WHERE id = ?').bind(entryId).first();
+  if (!entry) throw new ApiError(ErrorCode.ENTRY_NOT_FOUND, 'Entry not found', 404);
+  if (Number(entry.is_guest) !== 1) {
+    throw new ApiError(ErrorCode.UNAUTHORIZED, 'Upload ticket only available for guest entries', 403);
+  }
+
+  const secret = c.env.TOKEN_SECRET || 'fallback-secret-change-me';
+  const expires = Math.min(Math.max(requestedExpires, 60), 300);
+  const guestKey = await generateToken(
+    {
+      scope: 'guest-upload',
+      entry_id: entryId,
+      key,
+      exp: Math.floor(Date.now() / 1000) + expires,
+    },
+    secret
+  );
+
+  return c.json({ data: { guestKey, expiresIn: expires }, meta: { requestId: c.get('requestId') } });
+});
 
 // POST confirm upload — server verifies R2 object exists, enforces quota, inserts DB record
 app.post('/api/v1/files/confirm', zValidator('json', fileMetaSchema), async (c) => {

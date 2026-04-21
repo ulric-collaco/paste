@@ -59,13 +59,8 @@ export default {
       const valid = await verifyToken(token, secret)
       if (!valid) return json({ error: 'Invalid or expired token' }, 401, request)
     } else {
-      // Guest uploads require a signed short-lived upload ticket from paste-api
-      // (scope: 'guest-upload') — prevents anonymous bucket writes
+      // Guest uploads require a signed short-lived upload ticket from paste-api.
       if (!guestKey) return json({ error: 'Guest upload key required' }, 401, request)
-      const payload = await verifyToken(guestKey, secret)
-      if (!payload || payload.scope !== 'guest-upload') {
-        return json({ error: 'Invalid or expired guest upload key' }, 401, request)
-      }
     }
 
     // ── Upload URL (PUT) ────────────────────────────────────────────────────
@@ -76,6 +71,13 @@ export default {
         // Key validation — prevent path traversal and bucket pollution
         if (!key || !KEY_ALLOWLIST_RE.test(key)) {
           return json({ error: 'Invalid or missing key. Use only alphanumeric, dash, dot, underscore.' }, 400, request)
+        }
+
+        if (isGuest) {
+          const payload = await verifyToken(guestKey, secret)
+          if (!payload || payload.scope !== 'guest-upload' || payload.key !== key) {
+            return json({ error: 'Invalid or expired guest upload key' }, 401, request)
+          }
         }
 
         const cappedExpires = Math.min(Number(expires) || 300, isGuest ? 300 : 3600)

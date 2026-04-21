@@ -92,7 +92,13 @@ export default function R2UploadPanel({ entryId, isGuestMode, onFilesChange, exi
         setUploadProgress(p => ({ ...p, [key]: 0 }))
 
         // Step 1 — get presigned PUT URL
-        const uploadUrl = await getUploadUrl(key, isGuestMode)
+        let guestKey = null
+        if (isGuestMode) {
+          const ticket = await db.getGuestUploadTicket(entryId, key, 300)
+          guestKey = ticket?.guestKey || null
+          if (!guestKey) throw new Error('Failed to get guest upload key')
+        }
+        const uploadUrl = await getUploadUrl(key, isGuestMode, guestKey)
 
         // Step 2 — stream file to R2 with progress
         await uploadFileToR2(file, uploadUrl, pct =>

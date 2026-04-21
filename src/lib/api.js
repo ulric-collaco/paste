@@ -93,6 +93,14 @@ export const db = {
         });
     },
 
+    // Guest uploads require a short-lived, key-scoped ticket.
+    async getGuestUploadTicket(entryId, key, expires = 300) {
+        return await fetchApi('/files/guest-upload-ticket', {
+            method: 'POST',
+            body: JSON.stringify({ entry_id: entryId, key, expires }),
+        });
+    },
+
     // Legacy alias kept for backward compatibility — calls confirm under the hood
     async insertFileMetadata(fileData) {
         return this.confirmFileUpload(fileData);
