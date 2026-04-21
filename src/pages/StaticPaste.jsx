@@ -28,7 +28,7 @@ const CodeBlock = ({ node, inline, className, children, ...props }) => {
     return !inline ? (
         <div className="relative my-4">
             <div className="absolute right-2 top-2">
-                <button onClick={handleCopy} className="text-xs bg-gray-700 text-white px-2 py-1 rounded hover:bg-gray-600">
+                <button onClick={handleCopy} className="btn btn-ghost btn-xs">
                     Copy
                 </button>
             </div>

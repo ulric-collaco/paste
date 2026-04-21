@@ -36,7 +36,7 @@ const CodeBlock = ({ node, inline, className, children, ...props }) => {
     <div className="relative my-4">
       <div className="absolute right-2 top-2 z-10">
         <button onClick={handleCopy} aria-label="Copy code"
-          className="text-xs bg-neutral-800 text-neutral-300 px-2 py-1 rounded hover:bg-neutral-700 transition-colors duration-150">
+          className="btn btn-ghost btn-xs">
           {copied ? 'Copied!' : 'Copy'}
         </button>
       </div>

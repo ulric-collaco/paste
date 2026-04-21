@@ -243,10 +243,20 @@ export default function R2UploadPanel({ entryId, isGuestMode, onFilesChange, exi
               <div className="text-sm text-neutral-500">{utils.formatFileSize(f.file_size)} • {utils.formatDate(f.created_at)}</div>
             </div>
             <div className="flex items-center gap-2 ml-4">
-              <button onClick={() => handleDownload(f)} className="p-2 text-neutral-400 hover:text-neutral-200 transition-colors" title="Download">
+              <button
+                onClick={() => handleDownload(f)}
+                className="btn btn-ghost btn-icon text-neutral-400 hover:text-neutral-100"
+                title="Download"
+                aria-label={`Download ${f.file_name}`}
+              >
                 <Download size={16} />
               </button>
-              <button onClick={() => handleDelete(f)} className="p-2 text-neutral-400 hover:text-red-400 transition-colors" title="Delete">
+              <button
+                onClick={() => handleDelete(f)}
+                className="btn btn-ghost btn-icon text-neutral-400 hover:text-red-300 hover:border-red-800/70"
+                title="Delete"
+                aria-label={`Delete ${f.file_name}`}
+              >
                 <Trash2 size={16} />
               </button>
             </div>

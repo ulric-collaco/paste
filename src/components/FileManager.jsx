@@ -19,7 +19,7 @@ const FileManager = ({ isOpen, onClose, entryId, files, onFilesChange }) => {
         {/* Modal Header */}
         <div className="flex items-center justify-between p-6 border-b border-neutral-900">
           <h2 className="text-xl font-semibold text-gray-100">File Manager</h2>
-          <button onClick={onClose} className="text-neutral-400 hover:text-neutral-200 transition-colors">
+          <button onClick={onClose} className="btn btn-ghost btn-icon" aria-label="Close file manager">
             <X size={24} />
           </button>
         </div>
