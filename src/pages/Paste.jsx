@@ -261,7 +261,7 @@ const Paste = ({ mode }) => {
 
   // ── Render ────────────────────────────────────────────────────────────
   return (
-    <div className="paste-shell">
+    <div className={`paste-shell ${cur.isEditing ? 'paste-shell--editing' : ''}`}>
       <header className="paste-header">
         <div className="paste-header__inner">
           <div className="paste-header__left">
