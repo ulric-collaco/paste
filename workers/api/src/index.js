@@ -8,6 +8,7 @@ import { authMiddleware, requestLogger, generateToken, verifyToken } from './mid
 const app = new Hono();
 
 const ALLOWED_ORIGINS = [
+  'https://mypastry.vercel.app',
   'https://paste.collacou.com',
   'https://paste.ulriccollaco.me',
   'http://localhost:3000',
